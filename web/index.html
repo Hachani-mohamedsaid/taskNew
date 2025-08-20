@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="collaborative_task_manager">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>collaborative_task_manager</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Intégration reCAPTCHA v3 - Solution optimisée -->
+  <script>
+    // Vérifie si reCAPTCHA est déjà chargé
+    if (!window.recaptchaLoaded) {
+      window.recaptchaLoaded = true;
+      var recaptchaScript = document.createElement('script');
+      recaptchaScript.src = 'https://www.google.com/recaptcha/api.js?render=6LejuoErAAAAAIYjXV9FoUvhzyWjxSpwq5vlgMnD';
+      recaptchaScript.async = true;
+      recaptchaScript.defer = true;
+      document.head.appendChild(recaptchaScript);
+      
+      // Initialisation globale
+      window.initRecaptcha = function() {
+        window.grecaptcha.ready(function() {
+          console.log('reCAPTCHA prêt');
+        });
+      };
+    }
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+
+  <script src="https://www.google.com/recaptcha/api.js?render=6LejuoErAAAAAIYjXV9FoUvhzyWjxSpwq5vlgMnD"></script>
+</body>
+</html>

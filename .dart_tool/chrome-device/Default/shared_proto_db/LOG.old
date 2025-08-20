@@ -1,0 +1,17 @@
+2025/08/16-13:13:40.477 720 Reusing MANIFEST C:\Users\INFORM~1\AppData\Local\Temp\flutter_tools.c2d9e742\flutter_tools_chrome_device.6b344b4c\Default\shared_proto_db/MANIFEST-000001
+2025/08/16-13:13:40.478 720 Recovering log #24
+2025/08/16-13:13:40.478 720 (ignoring error) C:\Users\INFORM~1\AppData\Local\Temp\flutter_tools.c2d9e742\flutter_tools_chrome_device.6b344b4c\Default\shared_proto_db/000024.log: dropping 1124 bytes; Corruption: partial record without end(1)
+2025/08/16-13:13:40.479 720 Reusing old log C:\Users\INFORM~1\AppData\Local\Temp\flutter_tools.c2d9e742\flutter_tools_chrome_device.6b344b4c\Default\shared_proto_db/000024.log 
+2025/08/16-13:13:40.479 720 Delete type=0 #3
+2025/08/16-13:13:40.479 720 Delete type=0 #4
+2025/08/16-13:13:40.479 720 Delete type=2 #7
+2025/08/16-13:13:40.480 720 Delete type=0 #7
+2025/08/16-13:13:40.480 720 Delete type=2 #8
+2025/08/16-13:13:40.480 720 Delete type=2 #9
+2025/08/16-13:13:40.480 720 Delete type=0 #9
+2025/08/16-13:13:40.480 720 Delete type=2 #10
+2025/08/16-13:13:40.480 720 Delete type=0 #11
+2025/08/16-13:13:40.480 720 Delete type=2 #12
+2025/08/16-13:13:40.480 720 Delete type=0 #14
+2025/08/16-13:13:40.480 720 Delete type=0 #18
+2025/08/16-13:13:40.480 720 Delete type=0 #21

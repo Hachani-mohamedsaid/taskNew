@@ -1,0 +1,29 @@
+2025/08/20-11:26:57.130 395c Reusing MANIFEST C:\Users\INFORM~1\AppData\Local\Temp\flutter_tools.697839e8\flutter_tools_chrome_device.c43a806c\Default\shared_proto_db/MANIFEST-000001
+2025/08/20-11:26:57.132 395c Recovering log #24
+2025/08/20-11:26:57.132 395c (ignoring error) C:\Users\INFORM~1\AppData\Local\Temp\flutter_tools.697839e8\flutter_tools_chrome_device.c43a806c\Default\shared_proto_db/000024.log: dropping 1124 bytes; Corruption: partial record without end(1)
+2025/08/20-11:26:57.136 395c Reusing old log C:\Users\INFORM~1\AppData\Local\Temp\flutter_tools.697839e8\flutter_tools_chrome_device.c43a806c\Default\shared_proto_db/000024.log 
+2025/08/20-11:26:57.138 395c Delete type=0 #3
+2025/08/20-11:26:57.138 395c Delete type=0 #4
+2025/08/20-11:26:57.138 395c Delete type=2 #7
+2025/08/20-11:26:57.172 395c Delete type=0 #7
+2025/08/20-11:26:57.172 395c Delete type=2 #8
+2025/08/20-11:26:57.172 395c Delete type=2 #9
+2025/08/20-11:26:57.172 395c Delete type=0 #9
+2025/08/20-11:26:57.172 395c Delete type=2 #10
+2025/08/20-11:26:57.172 395c Delete type=0 #11
+2025/08/20-11:26:57.172 395c Delete type=2 #12
+2025/08/20-11:26:57.172 395c Delete type=0 #14
+2025/08/20-11:26:57.172 395c Delete type=0 #18
+2025/08/20-11:26:57.172 395c Delete type=0 #21
+2025/08/20-11:27:34.955 395c Level-0 table #28: started
+2025/08/20-11:27:34.968 395c Level-0 table #28: 131401 bytes OK
+2025/08/20-11:27:34.972 395c Delete type=0 #24
+2025/08/20-11:27:34.972 395c Compacting 4@0 + 1@1 files
+2025/08/20-11:27:34.980 395c Generated table #29@0: 1575 keys, 80830 bytes
+2025/08/20-11:27:34.980 395c Compacted 4@0 + 1@1 files => 80830 bytes
+2025/08/20-11:27:34.984 395c compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/08/20-11:27:34.984 395c Delete type=2 #16
+2025/08/20-11:27:34.984 395c Delete type=2 #19
+2025/08/20-11:27:34.984 395c Delete type=2 #22
+2025/08/20-11:27:34.984 395c Delete type=2 #25
+2025/08/20-11:27:34.985 395c Delete type=2 #28
