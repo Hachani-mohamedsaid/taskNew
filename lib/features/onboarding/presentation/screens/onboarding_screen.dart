@@ -141,13 +141,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     );
                   }
                 },
-                child: Text(
-                  _currentPage == _pages.length - 1 ? 'Commencer' : 'Suivant',
-                ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
+                ),
+                child: Text(
+                  _currentPage == _pages.length - 1 ? 'Commencer' : 'Suivant',
                 ),
               ),
             ),

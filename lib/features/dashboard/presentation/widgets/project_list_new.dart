@@ -80,7 +80,7 @@ class ProjectListNew extends StatelessWidget {
                   final project = projectList[index];
                   try {
                     return _buildProjectCard(context, project, isAdmin);
-                  } catch (e, stack) {
+                  } catch (e) {
                     // Affiche une carte d'erreur si un projet pose problème
                     return Card(
                       color: Colors.red[50],

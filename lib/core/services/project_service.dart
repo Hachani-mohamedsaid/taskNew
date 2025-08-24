@@ -54,15 +54,25 @@ class ProjectService {
   }
 
   // Créer un nouveau projet
-  Future<void> createProject(ProjectModel project) async {
-    try {
-      await _firestore.collection('projects').add(project.toFirestore());
-      print('Projet créé avec succès');
-    } catch (e) {
-      print('Erreur lors de la création du projet: $e');
-      throw Exception('Erreur lors de la création du projet: $e');
+ Future<void> createProject(ProjectModel project) async {
+  try {
+    final docRef = _firestore.collection('projects').doc(project.id.isNotEmpty ? project.id : null);
+
+    if (project.id.isEmpty) {
+      // Générer un ID si vide
+      final newDocRef = _firestore.collection('projects').doc();
+      await newDocRef.set(project.copyWith(id: newDocRef.id).toFirestore());
+      print('Projet créé avec succès avec ID ${newDocRef.id}');
+    } else {
+      await docRef.set(project.toFirestore());
+      print('Projet créé avec succès avec ID ${project.id}');
     }
+  } catch (e) {
+    print('Erreur lors de la création du projet: $e');
+    throw Exception('Erreur lors de la création du projet: $e');
   }
+}
+
 
   // Mettre à jour un projet
   Future<void> updateProject(ProjectModel project) async {

@@ -122,7 +122,7 @@ class CalendarView extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Légende
-          _CalendarLegend(),
+          const _CalendarLegend(),
         ],
       ),
     );
@@ -294,18 +294,18 @@ class _CalendarLegend extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 8),
-        Row(
+        const Row(
           children: [
             _LegendItem(
               color: Colors.red,
               label: 'Priorité élevée',
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16),
             _LegendItem(
               color: Colors.orange,
               label: 'Priorité moyenne',
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16),
             _LegendItem(
               color: Colors.green,
               label: 'Priorité faible',

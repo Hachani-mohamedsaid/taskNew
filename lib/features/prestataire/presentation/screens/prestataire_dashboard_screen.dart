@@ -22,7 +22,7 @@ class _PrestataireDashboardScreenState
   int _selectedIndex = 0;
   final FirebaseService _firebaseService = FirebaseService();
   final ProfileImageService _profileImageService = ProfileImageService();
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +216,7 @@ class _PrestataireDashboardScreenState
                                 border: Border.all(
                                     color: Colors.white.withOpacity(0.3)),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
@@ -224,7 +224,7 @@ class _PrestataireDashboardScreenState
                                     size: 16,
                                     color: Colors.white,
                                   ),
-                                  const SizedBox(width: 6),
+                                  SizedBox(width: 6),
                                   Text(
                                     'PRESTATAIRE',
                                     style: TextStyle(
@@ -391,7 +391,7 @@ class _PrestataireDashboardScreenState
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: tasks[index]['color'] as Color,
-              child: Icon(Icons.assignment, color: Colors.white),
+              child: const Icon(Icons.assignment, color: Colors.white),
             ),
             title: Text(tasks[index]['title'] as String),
             subtitle: Text('Projet ${index + 1}'),

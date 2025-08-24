@@ -317,8 +317,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           decoration: const InputDecoration(labelText: 'Email*'),
           keyboardType: TextInputType.emailAddress,
           validator: (value) {
-            if (value == null || value.isEmpty)
+            if (value == null || value.isEmpty) {
               return 'Ce champ est obligatoire';
+            }
             if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
               return 'Email invalide';
             }
@@ -331,8 +332,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           decoration: const InputDecoration(labelText: 'Mot de passe*'),
           obscureText: true,
           validator: (value) {
-            if (value == null || value.isEmpty)
+            if (value == null || value.isEmpty) {
               return 'Ce champ est obligatoire';
+            }
             if (value.length < 6) return 'Minimum 6 caractères';
             return null;
           },

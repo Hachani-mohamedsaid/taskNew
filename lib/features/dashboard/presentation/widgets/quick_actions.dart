@@ -1,24 +1,54 @@
 import 'package:flutter/material.dart';
 import '../../../../core/models/user_model.dart';
+import '../../../../core/models/project_model.dart';
+import '../../../../core/models/ProjectStatus.dart';
+import '../../../../core/services/firebase_service.dart';
+import '../../../../core/services/project_service.dart';
 
 class QuickActions extends StatefulWidget {
   final UserModel currentUser;
-  const QuickActions({super.key, required this.currentUser, required Future<void> Function() onCreateProject, required Future<void> Function() onCreateTask});
+  final ProjectService projectService;
+  final VoidCallback onProjectCreated;
+  final FirebaseService firebaseService;
+
+  const QuickActions({
+    super.key,
+    required this.currentUser,
+    required this.projectService,
+    required this.onProjectCreated,
+    required this.firebaseService,
+  });
 
   @override
   State<QuickActions> createState() => _QuickActionsState();
 }
 
 class _QuickActionsState extends State<QuickActions> {
-  // Mock pour la démo
-  List<String> projects = ['Application Mobile', 'Site Web E-commerce'];
-  List<String> users = ['Admin Principal', 'John Doe', 'Jane Smith'];
+  List<UserModel> usersList = [];
   List<String> notifications = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    usersList = await widget.firebaseService.getAllUsers();
+
+    // 🔹 Debug print
+    debugPrint('=== Liste des utilisateurs ===');
+    for (var u in usersList) {
+      debugPrint('${u.id} | ${u.displayName} | ${u.email} | Role: ${u.role}');
+    }
+    setState(() {});
+  }
 
   void _showCreateProjectDialog() {
     String projectName = '';
     String projectDesc = '';
     List<String> selectedMembers = [];
+
     showDialog(
       context: context,
       builder: (context) {
@@ -40,22 +70,24 @@ class _QuickActionsState extends State<QuickActions> {
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Membres',
+                  child: const Text('Membres',
                       style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
-                ...users.map((u) => CheckboxListTile(
-                      value: selectedMembers.contains(u),
-                      title: Text(u),
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == true) {
-                            selectedMembers.add(u);
-                          } else {
-                            selectedMembers.remove(u);
-                          }
-                        });
-                      },
-                    )),
+                ...usersList
+                    .where((u) => u.id != widget.currentUser.id) // Exclure le membre connecté
+                    .map((u) => CheckboxListTile(
+                          value: selectedMembers.contains(u.id),
+                          title: Text(u.displayName),
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                selectedMembers.add(u.id);
+                              } else {
+                                selectedMembers.remove(u.id);
+                              }
+                            });
+                          },
+                        )),
               ],
             ),
           ),
@@ -65,13 +97,32 @@ class _QuickActionsState extends State<QuickActions> {
               child: const Text('Annuler'),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  projects.add(projectName);
-                });
+              onPressed: () async {
+                if (projectName.isEmpty) return;
+
+                final newProject = ProjectModel(
+                  id: '', // Firestore générera l'ID
+                  name: projectName,
+                  description: projectDesc,
+                  status: ProjectStatus.active,
+                  startDate: DateTime.now(),
+                  endDate: null,
+                  createdBy: widget.currentUser.email,
+                  assignedUsers: selectedMembers,
+                  progress: 0,
+                  priority: 'medium',
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                  members: selectedMembers,
+                  ownerId: widget.currentUser.id,
+                );
+
+                await widget.projectService.createProject(newProject);
                 Navigator.pop(context);
+                widget.onProjectCreated();
+
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Projet "$projectName" créé !')),
+                  SnackBar(content: Text('Projet "$projectName" créé avec succès !')),
                 );
               },
               child: const Text('Créer'),
@@ -83,7 +134,8 @@ class _QuickActionsState extends State<QuickActions> {
   }
 
   void _showManageUsersDialog() {
-    List<String> projectMembers = List.from(users.take(2));
+    List<String> projectMembers = usersList.take(2).map((u) => u.id).toList();
+
     showDialog(
       context: context,
       builder: (context) {
@@ -94,19 +146,21 @@ class _QuickActionsState extends State<QuickActions> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ...users.map((u) => CheckboxListTile(
-                        value: projectMembers.contains(u),
-                        title: Text(u),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            if (val == true) {
-                              projectMembers.add(u);
-                            } else {
-                              projectMembers.remove(u);
-                            }
-                          });
-                        },
-                      )),
+                  ...usersList
+                      .where((u) => u.id != widget.currentUser.id) // Exclure le membre connecté
+                      .map((u) => CheckboxListTile(
+                            value: projectMembers.contains(u.id),
+                            title: Text(u.displayName),
+                            onChanged: (val) {
+                              setStateDialog(() {
+                                if (val == true) {
+                                  projectMembers.add(u.id);
+                                } else {
+                                  projectMembers.remove(u.id);
+                                }
+                              });
+                            },
+                          )),
                 ],
               ),
               actions: [
@@ -254,6 +308,7 @@ class _QuickActionsState extends State<QuickActions> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = widget.currentUser.role == UserRole.admin;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -282,9 +337,7 @@ class _QuickActionsState extends State<QuickActions> {
               child: _ActionCard(
                 title: 'Nouveau projet',
                 icon: Icons.create_new_folder,
-                onTap: isAdmin
-                    ? _showCreateProjectDialog
-                    : () {}, // désactive si non admin
+                onTap: isAdmin ? _showCreateProjectDialog : () {},
               ),
             ),
           ],
@@ -344,9 +397,11 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 3,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
