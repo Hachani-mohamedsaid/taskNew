@@ -1,4 +1,4 @@
-      import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
       import 'package:collaborative_task_manager/core/models/ProjectStatus.dart';
 
       class ProjectModel {

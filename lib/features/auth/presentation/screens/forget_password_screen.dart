@@ -217,12 +217,14 @@ class _ForgetPasswordScreenState extends State<ForgetPasswordScreen>
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Champ requis';
+                                  }
                                   final emailRegex =
                                       RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-                                  if (!emailRegex.hasMatch(v))
+                                  if (!emailRegex.hasMatch(v)) {
                                     return 'Email invalide';
+                                  }
                                   return null;
                                 },
                               ),

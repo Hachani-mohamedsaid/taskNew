@@ -313,7 +313,7 @@ class DashboardStats extends StatelessWidget {
                       ),
                     ),
                   ),
-                  gridData: FlGridData(show: true),
+                  gridData: const FlGridData(show: true),
                   borderData: FlBorderData(show: false),
                   barGroups: [
                     BarChartGroupData(

@@ -1,11 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:collaborative_task_manager/core/models/project_model.dart';
 import 'package:collaborative_task_manager/core/models/task_model.dart';
 import 'package:collaborative_task_manager/core/models/user_model.dart';

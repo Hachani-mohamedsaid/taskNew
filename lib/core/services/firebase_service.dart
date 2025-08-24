@@ -1,4 +1,4 @@
-    import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
     import 'package:collaborative_task_manager/core/models/ProjectStatus.dart';
     import 'package:firebase_auth/firebase_auth.dart';
     import 'package:flutter/material.dart';
@@ -50,28 +50,33 @@
         }
       }
 
-      Future<UserModel?> getUserModel(String userId) async {
-        try {
-          final doc = await _firestore.collection('users').doc(userId).get();
-          if (!doc.exists) return null;
+ Future<List<UserModel>> getAllUsers() async {
+  try {
+    final querySnapshot = await _firestore.collection('users').get();
+    final users = querySnapshot.docs.map((doc) {
+      final data = doc.data();
+      return UserModel(
+        id: data['id'] ?? doc.id,
+        email: data['email'] ?? '',
+        displayName: data['displayName'] ?? '',
+        photoURL: data['photoURL'],
+        role: _parseUserRole(data['role']),
+        createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        lastSeen: (data['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        isActive: data['isActive'] ?? true,
+      );
+    }).toList();
 
-          final data = doc.data()!;
-          return UserModel(
-            id: data['id'] ?? userId,
-            email: data['email'] ?? '',
-            displayName: data['displayName'] ?? '',
-            photoURL: data['photoURL'],
-            role: _parseUserRole(data['role']),
-            createdAt:
-                (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-            lastSeen: (data['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
-            isActive: data['isActive'] ?? true,
-          );
-        } catch (e) {
-          debugPrint('Error fetching user data: ${e.toString()}');
-          return null;
-        }
-      }
+    // 🔹 Debug print de la liste
+    debugPrint('Liste des utilisateurs : ${users.map((u) => u.displayName).toList()}');
+
+    return users;
+  } catch (e) {
+    debugPrint('Erreur récupération users : $e');
+    return [];
+  }
+}
+
 
       Future<Map<String, dynamic>> getProjectStats(String userId) async {
         try {
@@ -194,35 +199,47 @@
 
       /// Ajout dynamique d'un projet avec membres (clients)
       Future<void> createProject({
-        required String name,
-        required String description,
-        required String ownerId,
-        List<String> members = const [],
-        DateTime? dueDate,
-      }) async {
-        try {
-          debugPrint('Enregistrement Firestore: name=$name, ownerId=$ownerId, members=$members');
-          await _firestore.collection('projects').add({
-            'name': name,
-            'description': description,
-            'ownerId': ownerId,
-            'createdBy': ownerId,
-            'members': members,
-            'createdAt': FieldValue.serverTimestamp(),
-            'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
-            'status': ProjectStatus.active.toString().split('.').last,
-            'startDate': FieldValue.serverTimestamp(),
-            'assignedUsers': members,
-            'progress': 0,
-            'priority': 'medium',
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-          debugPrint('Projet ajouté avec succès dans Firestore');
-        } catch (e, stack) {
-          debugPrint('Erreur Firestore lors de l\'ajout du projet: $e\n$stack');
-          rethrow;
-        }
-      }
+  required String name,
+  required String description,
+  required String ownerId,
+  List<String> members = const [],
+  ProjectStatus status = ProjectStatus.active,
+  String priority = 'medium',
+  DateTime? startDate,
+  DateTime? endDate,
+}) async {
+  try {
+    final docRef = _firestore.collection('projects').doc();
+
+    debugPrint(
+        'Enregistrement Firestore: id=${docRef.id}, name=$name, ownerId=$ownerId, members=$members');
+
+    await docRef.set({
+      'id': docRef.id, // 🔑 on stocke l’ID dans le doc
+      'name': name,
+      'description': description,
+      'ownerId': ownerId,
+      'createdBy': ownerId,
+      'members': members,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'status': status.toString().split('.').last,
+      'priority': priority,
+      'startDate': startDate != null
+          ? Timestamp.fromDate(startDate)
+          : FieldValue.serverTimestamp(),
+      'endDate': endDate != null ? Timestamp.fromDate(endDate) : null,
+      'assignedUsers': members,
+      'progress': 0,
+    });
+
+    debugPrint('Projet ajouté avec succès dans Firestore');
+  } catch (e, stack) {
+    debugPrint('Erreur Firestore lors de l\'ajout du projet: $e\n$stack');
+    rethrow;
+  }
+}
+
 
       Future<List<Map<String, dynamic>>> getClients() async {
         final snapshot = await _firestore
@@ -305,4 +322,30 @@
             return Exception('Authentication failed: ${e.message}');
         }
       }
+
+      Future<UserModel?> getUserModel(String userId) async {
+  try {
+    final doc = await _firestore.collection('users').doc(userId).get();
+    if (!doc.exists) return null;
+
+    final data = doc.data()!;
+    return UserModel(
+      id: data['id'] ?? doc.id,
+      email: data['email'] ?? '',
+      displayName: data['displayName'] ?? '${data['firstName']} ${data['lastName']}',
+      photoURL: data['photoURL'],
+      role: _parseUserRole(data['role']),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastSeen: (data['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isActive: data['isActive'] ?? true,
+    );
+  } catch (e) {
+    debugPrint('Erreur getUserModel: $e');
+    return null;
+  }
+}
+
+      
+
     }
+    

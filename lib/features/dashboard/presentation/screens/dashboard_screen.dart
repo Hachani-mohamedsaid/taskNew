@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; 
 import '../../../../core/models/user_model.dart';
+import '../../../../core/services/project_service.dart';
+import '../../../../core/services/firebase_service.dart'; // 🔹 importer
 import 'Task.dart';
 import 'dashboard_home_screen.dart';
-
 import 'projects_screen.dart';
 import 'calendar_screen.dart';
 import 'notifications_screen.dart';
@@ -22,8 +23,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
-    final List<Widget> _screens = [
-      DashboardHomeScreen(currentUser: user),
+    final projectService = ProjectService();
+    final firebaseService = FirebaseService(); // 🔹 instance FirebaseService
+
+    final List<Widget> screens = [
+      DashboardHomeScreen(
+        currentUser: user,
+        projectService: projectService,
+        firebaseService: firebaseService, // 🔹 passage obligatoire
+      ),
       Task(currentUser: user),
       ProjectsScreen(currentUser: user),
       CalendarScreen(currentUser: user),
@@ -32,7 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
     
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: screens[_currentIndex],
       bottomNavigationBar: Container(
         margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
         decoration: BoxDecoration(
@@ -40,7 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(32),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.10),
+              color: Colors.black.withOpacity(0.10), // ⚠️ warning deprecated
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -83,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           height: isSelected ? 28 : 0,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF1976D2).withOpacity(0.12)
+                                ? const Color(0xFF1976D2).withAlpha(31) // 🔹 remplacer withOpacity
                                 : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
@@ -106,7 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.redAccent.withOpacity(0.4),
+                                    color: Colors.redAccent.withAlpha(102), // 🔹 remplacer withOpacity
                                     blurRadius: 1.5,
                                   ),
                                 ],

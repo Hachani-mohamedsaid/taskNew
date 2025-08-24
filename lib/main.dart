@@ -49,7 +49,7 @@ class MyApp extends StatelessWidget {
 }
 
 class HomeAdmin extends StatefulWidget {
-  const HomeAdmin({Key? key}) : super(key: key);
+  const HomeAdmin({super.key});
 
   @override
   State<HomeAdmin> createState() => _HomeAdminState();

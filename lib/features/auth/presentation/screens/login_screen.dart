@@ -19,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
-  bool _isLoginMode = true;
+  final bool _isLoginMode = true;
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -222,17 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 24),
 
                 // Demo Login Button
-                OutlinedButton(
-                  onPressed: _isLoading ? null : _demoLogin,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(color: Theme.of(context).primaryColor),
-                  ),
-                  child: const Text(
-                    'Connexion Démo',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
+              
               ],
             ),
           ),
@@ -382,31 +372,31 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _demoLogin() async {
-    setState(() {
-      _isLoading = true;
-    });
+  // Future<void> _demoLogin() async {
+  //   setState(() {
+  //     _isLoading = true;
+  //   });
 
-    // Simuler un délai de connexion
-    await Future.delayed(const Duration(seconds: 1));
+  //   // Simuler un délai de connexion
+  //   await Future.delayed(const Duration(seconds: 1));
 
-    // Utilisateur admin démo
-    final user = UserModel.demoUsers.firstWhere(
-      (u) => u.role == UserRole.admin,
-      orElse: () => UserModel.demoUsers.first,
-    );
+  //   // Utilisateur admin démo
+  //   final user = UserModel.demoUsers.firstWhere(
+  //     (u) => u.role == UserRole.admin,
+  //     orElse: () => UserModel.demoUsers.first,
+  //   );
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+  //   if (mounted) {
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
 
-      // Navigation vers le dashboard avec UserModel
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => DashboardScreen(currentUser: user)),
-      );
-    }
-  }
+  //     // Navigation vers le dashboard avec UserModel
+  //     Navigator.of(context).pushReplacement(
+  //       MaterialPageRoute(builder: (_) => DashboardScreen(currentUser: user)),
+  //     );
+  //   }
+  // }
 
   void _showErrorDialog(String errorMsg) {
     showDialog(
