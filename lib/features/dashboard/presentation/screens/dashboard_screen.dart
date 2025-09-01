@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
 import '../../../../core/models/user_model.dart';
 import '../../../../core/services/project_service.dart';
-import '../../../../core/services/firebase_service.dart'; // 🔹 importer
+import '../../../../core/services/firebase_service.dart';
 import 'Task.dart';
 import 'dashboard_home_screen.dart';
 import 'projects_screen.dart';
@@ -20,25 +20,36 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
+List<UserModel> usersList = []; // 🔹 Ajouté ici
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
     final projectService = ProjectService();
-    final firebaseService = FirebaseService(); // 🔹 instance FirebaseService
+    final firebaseService = FirebaseService();
 
-    final List<Widget> screens = [
-      DashboardHomeScreen(
-        currentUser: user,
-        projectService: projectService,
-        firebaseService: firebaseService, // 🔹 passage obligatoire
-      ),
-      Task(currentUser: user),
-      ProjectsScreen(currentUser: user),
-      CalendarScreen(currentUser: user),
-      NotificationsScreen(currentUser: user),
-      ProfileScreen(currentUser: user),
-    ];
+final List<Widget> screens = [
+  DashboardHomeScreen(
+    currentUser: user,
+    projectService: projectService,
+    firebaseService: firebaseService,
+  ),
+  Task(
+    currentUser: user,
+    projectService: projectService, // 🔹 Ajouté ici
+    usersList: usersList,
+    firebaseService: firebaseService,
+  ),
+  ProjectsScreen(
+    currentUser: user,
+    projectService: projectService,
     
+  ),
+  CalendarScreen(currentUser: user),
+  NotificationsScreen(currentUser: user),
+  ProfileScreen(currentUser: user),
+];
+
+
     return Scaffold(
       body: screens[_currentIndex],
       bottomNavigationBar: Container(
@@ -48,7 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(32),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.10), // ⚠️ warning deprecated
+              color: Colors.black.withOpacity(0.10),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -91,7 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           height: isSelected ? 28 : 0,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF1976D2).withAlpha(31) // 🔹 remplacer withOpacity
+                                ? const Color(0xFF1976D2).withAlpha(31)
                                 : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
@@ -114,7 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.redAccent.withAlpha(102), // 🔹 remplacer withOpacity
+                                    color: Colors.redAccent.withAlpha(102),
                                     blurRadius: 1.5,
                                   ),
                                 ],

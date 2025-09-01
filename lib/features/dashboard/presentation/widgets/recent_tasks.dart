@@ -4,11 +4,23 @@ import '../../../../core/models/user_model.dart';
 
 class RecentTasks extends StatelessWidget {
   final UserModel currentUser;
-  const RecentTasks({super.key, required this.currentUser, required List<Map<String, dynamic>> tasks, required void Function(dynamic task) onTaskTap});
+  final List<TaskModel> tasks;
+  final void Function(TaskModel task) onEdit;
+  final void Function(TaskModel task) onDelete;
+  final void Function(TaskModel task)? onAssign;
+
+  const RecentTasks({
+    super.key,
+    required this.currentUser,
+    required this.tasks,
+    required this.onEdit,
+    required this.onDelete,
+    this.onAssign,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final recentTasks = TaskModel.demoTasks.take(3).toList();
+    final recentTasks = tasks.take(3).toList();
     final isAdmin = currentUser.role == UserRole.admin;
 
     return Column(
@@ -19,9 +31,10 @@ class RecentTasks extends StatelessWidget {
           children: [
             Text(
               'Tâches récentes',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             TextButton(
               style: TextButton.styleFrom(
@@ -41,6 +54,9 @@ class RecentTasks extends StatelessWidget {
             task: task,
             currentUser: currentUser,
             isAdmin: isAdmin,
+            onEdit: () => onEdit(task),
+            onDelete: () => onDelete(task),
+            onAssign: () => onAssign?.call(task),
           ),
         ),
       ],
@@ -52,9 +68,18 @@ class _RecentTaskItem extends StatelessWidget {
   final TaskModel task;
   final UserModel currentUser;
   final bool isAdmin;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onAssign;
 
-  const _RecentTaskItem(
-      {required this.task, required this.currentUser, required this.isAdmin});
+  const _RecentTaskItem({
+    required this.task,
+    required this.currentUser,
+    required this.isAdmin,
+    this.onEdit,
+    this.onDelete,
+    this.onAssign,
+  });
 
   Color _statusColor(TaskStatus status) {
     switch (status) {
@@ -80,211 +105,6 @@ class _RecentTaskItem extends StatelessWidget {
       case TaskStatus.archived:
         return 'Archivé';
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Card(
-        elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: _statusColor(task.status).withOpacity(0.15),
-                child: Icon(
-                  _getStatusIcon(task.status),
-                  color: _statusColor(task.status),
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            task.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _statusColor(task.status).withOpacity(0.13),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _statusText(task.status),
-                            style: TextStyle(
-                              color: _statusColor(task.status),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      task.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today,
-                            size: 15, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Text(
-                          task.dueDate != null
-                              ? _formatDate(task.dueDate!)
-                              : 'Pas de date',
-                          style:
-                              TextStyle(color: Colors.grey[600], fontSize: 12),
-                        ),
-                        const Spacer(),
-                        Icon(Icons.priority_high,
-                            size: 15, color: _getPriorityColor(task.priority)),
-                        const SizedBox(width: 4),
-                        Text(
-                          _getPriorityText(task.priority),
-                          style: TextStyle(
-                              color: _getPriorityColor(task.priority),
-                              fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (isAdmin) ...[
-                const SizedBox(width: 8),
-                Column(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.person_add),
-                      tooltip: 'Assigner',
-                      color: Colors.blue,
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Assigner la tâche'),
-                            content: const Text(
-                                'Sélectionnez un membre à assigner (mock).'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Annuler'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('Tâche assignée (mock)')),
-                                  );
-                                },
-                                child: const Text('Assigner'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      tooltip: 'Modifier',
-                      color: Colors.deepPurple,
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Modifier la tâche'),
-                            content: const Text(
-                                'Formulaire de modification (mock).'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Annuler'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('Tâche modifiée (mock)')),
-                                  );
-                                },
-                                child: const Text('Enregistrer'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      tooltip: 'Supprimer',
-                      color: Colors.red,
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Supprimer la tâche'),
-                            content: const Text(
-                                'Voulez-vous vraiment supprimer cette tâche ?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Annuler'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content:
-                                            Text('Tâche supprimée (mock)')),
-                                  );
-                                },
-                                child: const Text('Supprimer'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   IconData _getStatusIcon(TaskStatus status) {
@@ -324,5 +144,115 @@ class _RecentTaskItem extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onEdit,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        margin: const EdgeInsets.only(bottom: 14),
+        child: Card(
+          elevation: 6,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: _statusColor(task.status).withOpacity(0.15),
+                  child: Icon(
+                    _getStatusIcon(task.status),
+                    color: _statusColor(task.status),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              task.title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _statusColor(task.status).withOpacity(0.13),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _statusText(task.status),
+                              style: TextStyle(
+                                color: _statusColor(task.status),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        task.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today,
+                              size: 15, color: Colors.grey[500]),
+                          const SizedBox(width: 4),
+                          Text(
+                            task.dueDate != null
+                                ? _formatDate(task.dueDate!)
+                                : 'Pas de date',
+                            style: TextStyle(
+                                color: Colors.grey[600], fontSize: 12),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.priority_high,
+                              size: 15,
+                              color: _getPriorityColor(task.priority)),
+                          const SizedBox(width: 4),
+                          Text(
+                            _getPriorityText(task.priority),
+                            style: TextStyle(
+                                color: _getPriorityColor(task.priority),
+                                fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
