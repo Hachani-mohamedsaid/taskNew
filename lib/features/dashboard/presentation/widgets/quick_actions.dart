@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/models/task_model.dart';
 import '../../../../core/models/user_model.dart';
 import '../../../../core/models/project_model.dart';
 import '../../../../core/models/ProjectStatus.dart';
@@ -44,94 +45,141 @@ class _QuickActionsState extends State<QuickActions> {
     setState(() {});
   }
 
-  void _showCreateProjectDialog() {
-    String projectName = '';
-    String projectDesc = '';
-    List<String> selectedMembers = [];
+void _showCreateProjectDialog() {
+  String projectName = '';
+  String projectDesc = '';
+  List<String> selectedMembers = [];
+  String selectedPriority = 'medium'; // 🔹 Priorité par défaut
+  DateTime? endDate; // 🔹 Date de fin
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Créer un nouveau projet'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Nom du projet'),
-                  onChanged: (v) => projectName = v,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Description'),
-                  onChanged: (v) => projectDesc = v,
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: const Text('Membres',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                ...usersList
-                    .where((u) => u.id != widget.currentUser.id) // Exclure le membre connecté
-                    .map((u) => CheckboxListTile(
-                          value: selectedMembers.contains(u.id),
-                          title: Text(u.displayName),
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                selectedMembers.add(u.id);
-                              } else {
-                                selectedMembers.remove(u.id);
-                              }
-                            });
-                          },
-                        )),
-              ],
+  showDialog(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Créer un nouveau projet'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Nom
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Nom du projet'),
+                    onChanged: (v) => projectName = v,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Description
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Description'),
+                    onChanged: (v) => projectDesc = v,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Membres
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: const Text('Membres', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  ...usersList
+                      .where((u) => u.id != widget.currentUser.id)
+                      .map((u) => CheckboxListTile(
+                            value: selectedMembers.contains(u.id),
+                            title: Text(u.displayName),
+                            onChanged: (val) {
+                              setStateDialog(() {
+                                if (val == true) selectedMembers.add(u.id);
+                                else selectedMembers.remove(u.id);
+                              });
+                            },
+                          )),
+
+                  const SizedBox(height: 12),
+
+                  // 🔹 Priorité
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Priorité'),
+                    value: selectedPriority,
+                    items: ['low', 'medium', 'high', 'urgent'].map((p) {
+                      return DropdownMenuItem(
+                        value: p,
+                        child: Text(p[0].toUpperCase() + p.substring(1)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setStateDialog(() => selectedPriority = val);
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // 🔹 Date de fin
+                  Row(
+                    children: [
+                      Text(endDate == null
+                          ? 'Date de fin : Non définie'
+                          : 'Date de fin : ${endDate!.day}/${endDate!.month}/${endDate!.year}'),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setStateDialog(() => endDate = picked);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (projectName.isEmpty) return;
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (projectName.isEmpty) return;
 
-                final newProject = ProjectModel(
-                  id: '', // Firestore générera l'ID
-                  name: projectName,
-                  description: projectDesc,
-                  status: ProjectStatus.active,
-                  startDate: DateTime.now(),
-                  endDate: null,
-                  createdBy: widget.currentUser.email,
-                  assignedUsers: selectedMembers,
-                  progress: 0,
-                  priority: 'medium',
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                  members: selectedMembers,
-                  ownerId: widget.currentUser.id,
-                );
+                  final newProject = ProjectModel(
+                    id: '',
+                    name: projectName,
+                    description: projectDesc,
+                    status: ProjectStatus.active,
+                    startDate: DateTime.now(),
+                    endDate: endDate,
+                    createdBy: widget.currentUser.email,
+                    assignedUsers: selectedMembers,
+                    progress: 0,
+                    priority: selectedPriority,
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                    members: selectedMembers,
+                    ownerId: widget.currentUser.id,
+                  );
 
-                await widget.projectService.createProject(newProject);
-                Navigator.pop(context);
-                widget.onProjectCreated();
+                  await widget.projectService.createProject(newProject);
+                  Navigator.pop(context);
+                  widget.onProjectCreated();
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Projet "$projectName" créé avec succès !')),
-                );
-              },
-              child: const Text('Créer'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Projet "$projectName" créé avec succès !')),
+                  );
+                },
+                child: const Text('Créer'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
 
   void _showManageUsersDialog() {
     List<String> projectMembers = usersList.take(2).map((u) => u.id).toList();
@@ -304,6 +352,178 @@ class _QuickActionsState extends State<QuickActions> {
       },
     );
   }
+void _showCreateTaskDialog() {
+  String taskTitle = '';
+  String taskDesc = '';
+  String? selectedProjectId;
+  String? assignedMember; // 🔹 Un seul membre
+  TaskStatus selectedStatus = TaskStatus.todo;
+  TaskPriority selectedPriority = TaskPriority.medium;
+  DateTime? dueDate;
+  List<String> attachments = [];
+  List<SubTask> subTasks = [];
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setStateDialog) {
+          // 🔹 Liste filtrée des membres selon le projet sélectionné
+          List<UserModel> filteredUsers = [];
+          if (selectedProjectId != null) {
+            final project = widget.projectService.getCachedProjectById(selectedProjectId!);
+            if (project != null) {
+              filteredUsers = usersList
+                  .where((u) => project.assignedUsers.contains(u.id))
+                  .toList();
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Créer une nouvelle tâche'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 🔹 Titre
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Titre de la tâche'),
+                    onChanged: (v) => taskTitle = v,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 🔹 Description
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Description'),
+                    maxLines: 2,
+                    onChanged: (v) => taskDesc = v,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 🔹 Choix projet
+                  FutureBuilder<List<ProjectModel>>(
+                    future: widget.projectService.getProjectsCreatedBy(widget.currentUser.email),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const CircularProgressIndicator();
+                      final projects = snapshot.data!;
+                      return DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Projet'),
+                        value: selectedProjectId,
+                        items: projects.map((p) => DropdownMenuItem(
+                          value: p.id,
+                          child: Text(p.name),
+                        )).toList(),
+                        onChanged: (val) {
+                          setStateDialog(() {
+                            selectedProjectId = val;
+                            assignedMember = null; // 🔹 Réinitialiser le membre sélectionné
+                          });
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 🔹 Assignation aux membres (un seul)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: const Text('Assigner à', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  if (selectedProjectId != null)
+                    ...filteredUsers.map((u) => RadioListTile<String>(
+                          value: u.id,
+                          groupValue: assignedMember,
+                          title: Text(u.displayName),
+                          onChanged: (val) {
+                            setStateDialog(() {
+                              assignedMember = val;
+                            });
+                          },
+                        ))
+                  else
+                    const Text('Sélectionnez un projet pour voir les membres'),
+
+                  const SizedBox(height: 12),
+
+                  // 🔹 Priorité
+                  DropdownButtonFormField<TaskPriority>(
+                    decoration: const InputDecoration(labelText: 'Priorité'),
+                    value: selectedPriority,
+                    items: TaskPriority.values.map((p) {
+                      return DropdownMenuItem(
+                        value: p,
+                        child: Text(p.name),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setStateDialog(() => selectedPriority = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 🔹 Date d’échéance
+                  Row(
+                    children: [
+                      Text(dueDate == null
+                          ? 'Échéance : Non définie'
+                          : 'Échéance : ${dueDate!.day}/${dueDate!.month}/${dueDate!.year}'),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setStateDialog(() => dueDate = picked);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (taskTitle.isEmpty || selectedProjectId == null || assignedMember == null) return;
+
+                  final newTask = TaskModel(
+                    id: '',
+                    title: taskTitle,
+                    description: taskDesc,
+                    projectId: selectedProjectId!,
+                    assignedTo: [assignedMember!], // 🔹 Liste avec un seul membre
+                    status: TaskStatus.todo,
+                    priority: selectedPriority,
+                    dueDate: dueDate,
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                    createdBy: widget.currentUser.id,
+                    subTasks: subTasks,
+                  );
+
+                  await widget.firebaseService.createTaskModel(newTask);
+                  Navigator.pop(context);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Tâche "$taskTitle" créée avec succès !')),
+                  );
+                },
+                child: const Text('Créer'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -322,15 +542,12 @@ class _QuickActionsState extends State<QuickActions> {
         Row(
           children: [
             Expanded(
-              child: _ActionCard(
+                child: _ActionCard(
                 title: 'Nouvelle tâche',
                 icon: Icons.add_task,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nouvelle tâche')),
-                  );
-                },
+                onTap: _showCreateTaskDialog,
               ),
+
             ),
             const SizedBox(width: 12),
             Expanded(

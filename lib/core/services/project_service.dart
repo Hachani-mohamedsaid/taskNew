@@ -4,16 +4,22 @@ import '../models/project_model.dart';
 class ProjectService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // 🔹 Cache local des projets
+  List<ProjectModel> cachedProjects = [];
+
   // Récupérer tous les projets
   Future<List<ProjectModel>> getAllProjects() async {
     try {
       final querySnapshot = await _firestore.collection('projects').get();
-      return querySnapshot.docs
+      final projects = querySnapshot.docs
           .map((doc) => ProjectModel.fromFirestore(doc))
           .toList();
+
+      cachedProjects = projects; // mettre à jour le cache
+      return projects;
     } catch (e) {
       print('Erreur lors de la récupération des projets: $e');
-      return ProjectModel.demoProjects; // Fallback vers les données de démo
+      return ProjectModel.demoProjects;
     }
   }
 
@@ -24,9 +30,12 @@ class ProjectService {
           .collection('projects')
           .where('assignedUsers', arrayContains: userEmail)
           .get();
-      return querySnapshot.docs
+      final projects = querySnapshot.docs
           .map((doc) => ProjectModel.fromFirestore(doc))
           .toList();
+
+      cachedProjects = projects; // mettre à jour le cache
+      return projects;
     } catch (e) {
       print('Erreur lors de la récupération des projets utilisateur: $e');
       return ProjectModel.demoProjects
@@ -42,9 +51,12 @@ class ProjectService {
           .collection('projects')
           .where('createdBy', isEqualTo: userEmail)
           .get();
-      return querySnapshot.docs
+      final projects = querySnapshot.docs
           .map((doc) => ProjectModel.fromFirestore(doc))
           .toList();
+
+      cachedProjects = projects; // mettre à jour le cache
+      return projects;
     } catch (e) {
       print('Erreur lors de la récupération des projets créés: $e');
       return ProjectModel.demoProjects
@@ -53,26 +65,35 @@ class ProjectService {
     }
   }
 
-  // Créer un nouveau projet
- Future<void> createProject(ProjectModel project) async {
-  try {
-    final docRef = _firestore.collection('projects').doc(project.id.isNotEmpty ? project.id : null);
-
-    if (project.id.isEmpty) {
-      // Générer un ID si vide
-      final newDocRef = _firestore.collection('projects').doc();
-      await newDocRef.set(project.copyWith(id: newDocRef.id).toFirestore());
-      print('Projet créé avec succès avec ID ${newDocRef.id}');
-    } else {
-      await docRef.set(project.toFirestore());
-      print('Projet créé avec succès avec ID ${project.id}');
+  // 🔹 Récupérer un projet depuis le cache
+  ProjectModel? getCachedProjectById(String id) {
+    try {
+      return cachedProjects.firstWhere((p) => p.id == id);
+    } catch (e) {
+      return null;
     }
-  } catch (e) {
-    print('Erreur lors de la création du projet: $e');
-    throw Exception('Erreur lors de la création du projet: $e');
   }
-}
 
+  // Créer un nouveau projet
+  Future<void> createProject(ProjectModel project) async {
+    try {
+      final docRef = _firestore.collection('projects').doc(project.id.isNotEmpty ? project.id : null);
+
+      if (project.id.isEmpty) {
+        final newDocRef = _firestore.collection('projects').doc();
+        await newDocRef.set(project.copyWith(id: newDocRef.id).toFirestore());
+        cachedProjects.add(project.copyWith(id: newDocRef.id)); // mise à jour du cache
+        print('Projet créé avec succès avec ID ${newDocRef.id}');
+      } else {
+        await docRef.set(project.toFirestore());
+        cachedProjects.add(project); // mise à jour du cache
+        print('Projet créé avec succès avec ID ${project.id}');
+      }
+    } catch (e) {
+      print('Erreur lors de la création du projet: $e');
+      throw Exception('Erreur lors de la création du projet: $e');
+    }
+  }
 
   // Mettre à jour un projet
   Future<void> updateProject(ProjectModel project) async {
@@ -81,6 +102,11 @@ class ProjectService {
           .collection('projects')
           .doc(project.id)
           .update(project.toFirestore());
+
+      // 🔹 Mettre à jour le cache
+      final index = cachedProjects.indexWhere((p) => p.id == project.id);
+      if (index != -1) cachedProjects[index] = project;
+
       print('Projet mis à jour avec succès');
     } catch (e) {
       print('Erreur lors de la mise à jour du projet: $e');
@@ -92,6 +118,10 @@ class ProjectService {
   Future<void> deleteProject(String projectId) async {
     try {
       await _firestore.collection('projects').doc(projectId).delete();
+
+      // 🔹 Supprimer du cache
+      cachedProjects.removeWhere((p) => p.id == projectId);
+
       print('Projet supprimé avec succès');
     } catch (e) {
       print('Erreur lors de la suppression du projet: $e');
@@ -152,8 +182,7 @@ class ProjectService {
       }
       print('Données de démonstration initialisées avec succès');
     } catch (e) {
-      print(
-          'Erreur lors de l\'initialisation des données de démonstration: $e');
+      print('Erreur lors de l\'initialisation des données de démonstration: $e');
     }
   }
 }
