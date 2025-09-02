@@ -41,7 +41,7 @@ final List<Widget> screens = [
   ),
   ProjectsScreen(
     currentUser: user,
-    projectService: projectService,
+    projectService: projectService, firebaseService: firebaseService,
     
   ),
   CalendarScreen(currentUser: user),
