@@ -2,16 +2,18 @@ import 'package:collaborative_task_manager/features/dashboard/presentation/scree
 import 'package:flutter/material.dart';
 import '../../../../core/models/user_model.dart';
 import '../../../../core/models/project_model.dart';
+import '../../../../core/services/firebase_service.dart';
 import '../../../../core/services/project_service.dart';
 
 class ProjectsScreen extends StatelessWidget {
   final UserModel currentUser;
   final ProjectService projectService;
-
+ final FirebaseService firebaseService; // <-- ajouter ici
   const ProjectsScreen({
     super.key,
     required this.currentUser,
     required this.projectService,
+    required this.firebaseService, // <-- ajouter ici
   });
 
   @override
@@ -41,9 +43,14 @@ class ProjectsScreen extends StatelessWidget {
             itemCount: projects.length,
             itemBuilder: (context, index) {
               final project = projects[index];
-              return ProjectCard(
-                  project: project, currentUser: currentUser);
-            },
+    return ProjectCard(
+  project: project, 
+  currentUser: currentUser,
+  projectService: projectService,
+  firebaseService: firebaseService, // ← ici
+);
+
+            }
           );
         },
       ),
