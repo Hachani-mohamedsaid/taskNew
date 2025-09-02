@@ -57,6 +57,108 @@ class _TasksTabState extends State<TasksTab> {
     }
   }
 
+Future<void> _reportProblem(String taskId, String taskTitle) async {
+  final TextEditingController problemController = TextEditingController();
+  final currentUser = _auth.currentUser;
+
+  await showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Signaler un problème'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Tâche: $taskTitle'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: problemController,
+            decoration: const InputDecoration(
+              labelText: 'Description du problème',
+              border: OutlineInputBorder(),
+              hintText: 'Décrivez le problème rencontré...',
+            ),
+            maxLines: 5,
+            minLines: 3,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            if (problemController.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Veuillez décrire le problème'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+              return;
+            }
+
+            try {
+              // Enregistrer le rapport dans la collection 'problem_reports'
+              await _firestore.collection('problem_reports').add({
+                'taskId': taskId,
+                'taskTitle': taskTitle,
+                'description': problemController.text.trim(),
+                'reportedBy': currentUser?.uid,
+                'reportedByName': currentUser?.displayName ?? currentUser?.email,
+                'status': 'pending', // pending, reviewed, resolved
+                'createdAt': Timestamp.now(),
+                'updatedAt': Timestamp.now(),
+              });
+
+              // Ajouter également le rapport comme commentaire dans la tâche
+              await _firestore.collection('tasks').doc(taskId).update({
+                'comments': FieldValue.arrayUnion([
+                  {
+                    'type': 'problem_report',
+                    'message': problemController.text.trim(),
+                    'createdBy': currentUser?.uid,
+                    'createdByName': currentUser?.displayName ?? currentUser?.email,
+                    'createdAt': Timestamp.now(),
+                    'isProblem': true,
+                  }
+                ]),
+                'commentsCount': FieldValue.increment(1),
+                'updatedAt': Timestamp.now(),
+              });
+
+              if (mounted) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Problème signalé à l\'administrateur'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } catch (error) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erreur: $error'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red, // Couleur de fond rouge
+            foregroundColor: Colors.white, // Couleur du texte blanc
+          ),
+          child: const Text('Envoyer le rapport'),
+        ),
+      ],
+    ),
+  );
+}
+
   String _formatTimestamp(Timestamp timestamp) {
     final date = timestamp.toDate();
     return DateFormat('dd/MM/yyyy à HH:mm').format(date);
@@ -142,6 +244,28 @@ class _TasksTabState extends State<TasksTab> {
       ),
     );
   }
+
+Widget _buildReportButton(String taskId, String taskTitle) {
+  return ElevatedButton.icon(
+    onPressed: () => _reportProblem(taskId, taskTitle),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.red, // Changé en rouge pour plus de visibilité
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+    ),
+    icon: const Icon(
+      Icons.warning_amber, // Icône d'avertissement
+      size: 16,
+    ),
+    label: const Text(
+      'Signaler problème',
+      style: TextStyle(fontSize: 12),
+    ),
+  );
+}
 
   Widget _buildTaskItem(DocumentSnapshot document) {
     final data = document.data() as Map<String, dynamic>;
@@ -287,6 +411,8 @@ class _TasksTabState extends State<TasksTab> {
                     'Demander revue',
                     Colors.orange,
                   ),
+                // Bouton pour signaler un problème
+                _buildReportButton(taskId, title),
               ],
             ),
             const SizedBox(height: 12),

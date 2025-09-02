@@ -1,10 +1,12 @@
 import 'package:collaborative_task_manager/core/models/user_model.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'dashboard_tab.dart';
 import 'tasks_tab.dart';
 import 'calendar_tab.dart';
 import 'reports_tab.dart';
+import 'profile_tab.dart';
 
 class PrestataireNavigation extends StatefulWidget {
   final UserModel currentUser;
@@ -31,6 +33,7 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
       const TasksTab(),
       const CalendarTab(),
       const ReportsTab(),
+      ProfileTab(currentUser: widget.currentUser),
     ]);
   }
 
@@ -38,6 +41,23 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
     setState(() {
       _selectedIndex = index;
     });
+  }
+
+  void _logout(BuildContext context) async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      print('Erreur lors de la déconnexion: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur de déconnexion: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -53,13 +73,28 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
             icon: const Icon(Icons.notifications),
             onPressed: () {
               // TODO: Ouvrir les notifications
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Fonctionnalité notifications à implémenter'),
+                ),
+              );
             },
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'logout') {
-                // TODO: Implémenter la déconnexion
-                Navigator.of(context).pushReplacementNamed('/login');
+              if (value == 'profile') {
+                setState(() {
+                  _selectedIndex = 4; // Naviguer vers l'onglet Profil
+                });
+              } else if (value == 'settings') {
+                // TODO: Ouvrir les paramètres
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Fonctionnalité paramètres à implémenter'),
+                  ),
+                );
+              } else if (value == 'logout') {
+                _logout(context);
               }
             },
             itemBuilder: (context) => [
@@ -123,6 +158,10 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
             label: 'Rapports',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profil',
           ),
         ],
       ),

@@ -21,7 +21,19 @@ class PrestataireDashboardScreen extends StatelessWidget {
     print('Role: ${currentUser.role}');
     
     final ProfileImageService profileImageService = ProfileImageService();
-    print('URL valide: ${profileImageService.isValidImageUrl(currentUser.photoURL)}');
+    
+    // Vérification plus robuste de l'URL de l'image
+    final isValidUrl = currentUser.photoURL != null && 
+                      currentUser.photoURL!.isNotEmpty &&
+                      profileImageService.isValidImageUrl(currentUser.photoURL!);
+    
+    print('URL valide: $isValidUrl');
+    
+    if (currentUser.photoURL != null) {
+      print('Type de photoURL: ${currentUser.photoURL.runtimeType}');
+      print('Longueur de photoURL: ${currentUser.photoURL?.length}');
+      print('Contenu de photoURL: ${currentUser.photoURL}');
+    }
     
     return PrestataireNavigation(currentUser: currentUser);
   }

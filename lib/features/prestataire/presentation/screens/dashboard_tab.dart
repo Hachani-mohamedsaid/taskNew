@@ -319,39 +319,7 @@ class _DashboardTabState extends State<DashboardTab> {
                             ],
                           ),
                         ),
-                        // Menu profil
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert, color: Colors.white),
-                          onSelected: (value) {
-                            if (value == 'profile') {
-                              _showProfileDialog(context);
-                            } else if (value == 'logout') {
-                              _logout(context);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'profile',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.person),
-                                  SizedBox(width: 8),
-                                  Text('Mon Profil'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'logout',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.logout),
-                                  SizedBox(width: 8),
-                                  Text('Déconnexion'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                        // 
                       ],
                     ),
                     const SizedBox(height: 20),
