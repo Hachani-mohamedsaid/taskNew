@@ -185,4 +185,7 @@ class ProjectService {
       print('Erreur lors de l\'initialisation des données de démonstration: $e');
     }
   }
+  Future<void> loadProjects() async {
+  await getAllProjects();
+}
 }

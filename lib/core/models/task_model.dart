@@ -116,6 +116,42 @@ class TaskModel {
           createdBy: '2',
         ),
       ];
+
+      TaskModel copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? projectId,
+    List<String>? assignedTo,
+    TaskStatus? status,
+    TaskPriority? priority,
+    DateTime? dueDate,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? createdBy,
+    List<String>? attachments,
+    List<SubTask>? subTasks,
+    List<Comment>? comments,
+    int? commentsCount,
+  }) {
+    return TaskModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      projectId: projectId ?? this.projectId,
+      assignedTo: assignedTo ?? this.assignedTo,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      dueDate: dueDate ?? this.dueDate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdBy: createdBy ?? this.createdBy,
+      attachments: attachments ?? this.attachments,
+      subTasks: subTasks ?? this.subTasks,
+      comments: comments ?? this.comments,
+      commentsCount: commentsCount ?? this.commentsCount,
+    );
+  }
 }
 
 class SubTask {
@@ -147,3 +183,5 @@ class Comment {
     required this.createdAt,
   });
 }
+
+

@@ -26,7 +26,6 @@ class Task extends StatefulWidget {
 
 class _TaskState extends State<Task> {
   List<UserModel> usersList = [];
-  final FirebaseService _firebaseService = FirebaseService();
   List<TaskModel> tasks = [];
   bool isLoading = true;
 
@@ -38,6 +37,7 @@ class _TaskState extends State<Task> {
   void initState() {
     super.initState();
     _loadUsers();
+    _loadProjects(); // ✅ Charger les projets en cache
     _loadTasks();
   }
 
@@ -50,10 +50,19 @@ class _TaskState extends State<Task> {
     debugPrint("✅ Utilisateurs chargés : ${usersList.map((u) => u.displayName).toList()}");
   }
 
+  Future<void> _loadProjects() async {
+    try {
+      await widget.projectService.loadProjects(); // ⚡️ méthode qui charge tous les projets en mémoire
+      debugPrint("✅ Projets chargés en cache");
+    } catch (e) {
+      debugPrint("❌ Erreur chargement projets: $e");
+    }
+  }
+
   Future<void> _loadTasks() async {
     try {
       final userTasks =
-          await _firebaseService.getTasksCreatedByUser(widget.currentUser.id);
+          await widget.firebaseService.getTasksCreatedByUser(widget.currentUser.id);
       setState(() {
         tasks = userTasks;
         isLoading = false;
@@ -69,7 +78,7 @@ class _TaskState extends State<Task> {
     if (project == null) return [];
     final List<UserModel> members = [];
     for (final userId in project.assignedUsers) {
-      final user = await _firebaseService.getUserModel(userId);
+      final user = await widget.firebaseService.getUserModel(userId);
       if (user != null) members.add(user);
     }
     return members;
@@ -333,7 +342,7 @@ class _TaskState extends State<Task> {
                     subTasks: [],
                   );
 
-                  await _firebaseService.createTaskModel(newTask);
+                  await widget.firebaseService.createTaskModel(newTask);
                   setState(() => tasks.add(newTask));
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -352,216 +361,126 @@ class _TaskState extends State<Task> {
   }
 
   // 🔹 MODIFIER TÂCHE
-  void _showUpdateTaskDialog(TaskModel task) {
-    final titleController = TextEditingController(text: task.title);
-    final descriptionController =
-        TextEditingController(text: task.description);
-    TaskPriority selectedPriority = task.priority;
-    TaskStatus selectedStatus = task.status;
-    DateTime? selectedDueDate = task.dueDate;
+void _showUpdateTaskDialog(TaskModel task, ProjectModel project) {
+  final titleController = TextEditingController(text: task.title);
+  final descriptionController = TextEditingController(text: task.description);
 
-    String selectedProjectId = task.projectId;
-    // removed single assignedMember here; we'll manage a list inside dialog
+  TaskPriority selectedPriority = task.priority;
+  TaskStatus selectedStatus = task.status;
+  DateTime? selectedDueDate = task.dueDate;
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            // Use the local state usersList (not widget.usersList)
-            List<UserModel> filteredUsers = [];
-            if (selectedProjectId.isNotEmpty) {
-              final project = widget.projectService
-                  .getCachedProjectById(selectedProjectId);
-              if (project != null) {
-                filteredUsers = usersList
-                    .where((u) => project.assignedUsers.contains(u.id))
-                    .toList();
-              }
-            }
+  // ✅ Liste des membres du projet
+  List<String> projectMembers = project.members; 
 
-            // Assigned members list initialized from the task
-            List<String> assignedMembers = List.from(task.assignedTo);
+  // ✅ Membres déjà assignés à la tâche
+  List<String> selectedMembers = List.from(task.assignedTo);
 
-            return AlertDialog(
-              title: const Text('Modifier la tâche'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration:
-                          const InputDecoration(labelText: 'Titre'),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(
-                          labelText: 'Description'),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<TaskStatus>(
-                      value: selectedStatus,
-                      decoration:
-                          const InputDecoration(labelText: "Statut"),
-                      items: TaskStatus.values.map((status) {
-                        return DropdownMenuItem(
-                          value: status,
-                          child: Text(
-                              status.toString().split('.').last),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setStateDialog(() => selectedStatus = value);
-                        }
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text("Modifier la tâche"),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Champ titre
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(labelText: "Titre"),
+                  ),
+
+                  // Champ description
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(labelText: "Description"),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ✅ Liste des membres du projet avec ceux de la tâche déjà cochés
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text("Assigner aux membres :", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  ...projectMembers.map((member) {
+                    return CheckboxListTile(
+                      title: Text(member),
+                      value: selectedMembers.contains(member), // déjà sélectionné ?
+                      onChanged: (bool? checked) {
+                        setState(() {
+                          if (checked == true) {
+                            selectedMembers.add(member);
+                          } else {
+                            selectedMembers.remove(member);
+                          }
+                        });
                       },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<TaskPriority>(
-                      value: selectedPriority,
-                      decoration:
-                          const InputDecoration(labelText: "Priorité"),
-                      items: TaskPriority.values.map((prio) {
-                        return DropdownMenuItem(
-                          value: prio,
-                          child: Text(
-                              prio.toString().split('.').last),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setStateDialog(() => selectedPriority = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            selectedDueDate != null
-                                ? "Échéance : ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}"
-                                : "Pas de date d'échéance",
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.calendar_today),
-                          onPressed: () async {
-                            final pickedDate = await showDatePicker(
-                              context: context,
-                              initialDate:
-                                  selectedDueDate ?? DateTime.now(),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2100),
-                            );
-                            if (pickedDate != null) {
-                              setStateDialog(
-                                  () => selectedDueDate = pickedDate);
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: const Text(
-                        "Assigner à",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (filteredUsers.isNotEmpty)
-                      // use checkboxes to support multiple members
-                      ...filteredUsers.map(
-                        (user) => StatefulBuilder(
-                          builder: (context2, innerSetState) {
-                            final isChecked = assignedMembers.contains(user.id);
-                            return CheckboxListTile(
-                              value: isChecked,
-                              title: Text(user.displayName),
-                              onChanged: (val) {
-                                innerSetState(() {
-                                  if (val == true) {
-                                    if (!assignedMembers.contains(user.id)) {
-                                      assignedMembers.add(user.id);
-                                    }
-                                  } else {
-                                    assignedMembers.remove(user.id);
-                                  }
-                                });
-                                // also reflect changes to outer dialog state so UI updates
-                                setStateDialog(() {});
-                              },
-                            );
-                          },
-                        ),
-                      )
-                    else
-                      const Text("⚠️ Aucun membre assigné à ce projet."),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Annuler'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (assignedMembers.isEmpty) {
-                      // you can decide whether to allow empty assignment or not
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Sélectionnez au moins un membre')),
+                    );
+                  }).toList(),
+
+                  const SizedBox(height: 16),
+
+                  // Statut
+                  DropdownButton<TaskStatus>(
+                    value: selectedStatus,
+                    onChanged: (value) {
+                      setState(() => selectedStatus = value!);
+                    },
+                    items: TaskStatus.values.map((status) {
+                      return DropdownMenuItem(
+                        value: status,
+                        child: Text(status.toString().split('.').last),
                       );
-                      return;
-                    }
+                    }).toList(),
+                  ),
 
-                    final updatedTask = TaskModel(
-                      id: task.id,
-                      title: titleController.text,
-                      description: descriptionController.text,
-                      projectId: selectedProjectId,
-                      assignedTo: assignedMembers,
-                      status: selectedStatus,
-                      priority: selectedPriority,
-                      dueDate: selectedDueDate,
-                      createdAt: task.createdAt,
-                      updatedAt: DateTime.now(),
-                      createdBy: task.createdBy,
-                      attachments: task.attachments,
-                      subTasks: task.subTasks,
-                      comments: task.comments,
-                      commentsCount: task.commentsCount,
-                    );
-
-                    await _firebaseService.updateTask(updatedTask);
-                    await _firebaseService.updateTaskMembers(
-                        task.id, assignedMembers);
-
-                    setState(() {
-                      final index =
-                          tasks.indexWhere((t) => t.id == task.id);
-                      if (index != -1) tasks[index] = updatedTask;
-                    });
-
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('✅ Tâche mise à jour !')),
-                    );
-                  },
-                  child: const Text('Enregistrer'),
-                ),
-              ],
+                  // Priorité
+                  DropdownButton<TaskPriority>(
+                    value: selectedPriority,
+                    onChanged: (value) {
+                      setState(() => selectedPriority = value!);
+                    },
+                    items: TaskPriority.values.map((priority) {
+                      return DropdownMenuItem(
+                        value: priority,
+                        child: Text(priority.toString().split('.').last),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             );
           },
-        );
-      },
-    );
-  }
+        ),
+        actions: [
+          TextButton(
+            child: Text("Annuler"),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: Text("Mettre à jour"),
+            onPressed: () {
+              // ✅ Sauvegarde avec les membres mis à jour
+              final updatedTask = task.copyWith(
+                title: titleController.text,
+                description: descriptionController.text,
+                priority: selectedPriority,
+                status: selectedStatus,
+                dueDate: selectedDueDate,
+                assignedTo: selectedMembers,
+              );
+              Navigator.pop(context, updatedTask);
+            },
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   // 🔹 SUPPRIMER TÂCHE
   void _showDeleteTaskDialog(TaskModel task) {
@@ -579,7 +498,7 @@ class _TaskState extends State<Task> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  await _firebaseService.deleteTask(task.id);
+                  await widget.firebaseService.deleteTask(task.id);
                   setState(() {
                     tasks.removeWhere((t) => t.id == task.id);
                   });
@@ -602,7 +521,7 @@ class _TaskState extends State<Task> {
     );
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final isAdmin = widget.currentUser.role == UserRole.admin;
 
@@ -642,22 +561,41 @@ class _TaskState extends State<Task> {
                   itemBuilder: (context, index) {
                     final task = filteredTasks[index];
 
-                    // ✅ Affiche les IDs des membres assignés
-                    debugPrint("Membres assignés (IDs) : ${task.assignedTo}");
-
-                    // ✅ Si tu veux afficher les noms
-                    final memberNames = usersList
+                    // ✅ Membres assignés à la tâche
+                    final taskMembers = usersList
                         .where((u) => task.assignedTo.contains(u.id))
                         .map((u) => u.displayName)
                         .toList();
+                    debugPrint("👥 Membres de la tâche '${task.title}' : $taskMembers");
 
-                    debugPrint("Membres assignés (noms) : $memberNames");
+                    // ✅ Récupérer le projet lié à la tâche
+                    final project = widget.projectService.getCachedProjectById(task.projectId);
+                    if (project != null) {
+                      final projectMembers = usersList
+                          .where((u) => project.assignedUsers.contains(u.id))
+                          .map((u) => u.displayName)
+                          .toList();
+
+                      debugPrint("📌 Projet: ${project.name}");
+                      debugPrint("👥 Membres du projet: $projectMembers");
+                    } else {
+                      debugPrint("⚠️ Projet introuvable pour la tâche '${task.title}'");
+                    }
 
                     return TaskCard(
                       task: task,
                       currentUser: widget.currentUser,
                       isAdmin: isAdmin,
-                      onEdit: () => _showUpdateTaskDialog(task),
+                      onEdit: () {
+                    if (project != null) {
+                      _showUpdateTaskDialog(task, project);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Projet introuvable pour cette tâche !")),
+                      );
+                    }
+                  },
+
                       onDelete: () => _showDeleteTaskDialog(task),
                     );
                   },
@@ -671,3 +609,4 @@ class _TaskState extends State<Task> {
     );
   }
 }
+
