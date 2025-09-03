@@ -361,21 +361,21 @@ class _TaskState extends State<Task> {
     );
   }
 
-  // 🔹 MODIFIER TÂCHE
+
   void _showUpdateTaskDialog(TaskModel task) {
     final titleController = TextEditingController(text: task.title);
     final descriptionController =
         TextEditingController(text: task.description);
-    TaskPriority selectedPriority = task.priority;
-    TaskStatus selectedStatus = task.status;
-    DateTime? selectedDueDate = task.dueDate;
+  TaskPriority selectedPriority = task.priority;
+  TaskStatus selectedStatus = task.status;
+  DateTime? selectedDueDate = task.dueDate;
 
     String selectedProjectId = task.projectId;
     // removed single assignedMember here; we'll manage a list inside dialog
 
-    showDialog(
-      context: context,
-      builder: (context) {
+  showDialog(
+    context: context,
+    builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             // Use the local state usersList (not widget.usersList)
@@ -393,37 +393,37 @@ class _TaskState extends State<Task> {
             // Assigned members list initialized from the task
             List<String> assignedMembers = List.from(task.assignedTo);
 
-            return AlertDialog(
+      return AlertDialog(
               title: const Text('Modifier la tâche'),
               content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
                       decoration:
                           const InputDecoration(labelText: 'Titre'),
-                    ),
+                  ),
                     const SizedBox(height: 10),
-                    TextField(
-                      controller: descriptionController,
+                  TextField(
+                    controller: descriptionController,
                       decoration: const InputDecoration(
                           labelText: 'Description'),
                       maxLines: 2,
-                    ),
+                  ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<TaskStatus>(
-                      value: selectedStatus,
+                    value: selectedStatus,
                       decoration:
                           const InputDecoration(labelText: "Statut"),
-                      items: TaskStatus.values.map((status) {
-                        return DropdownMenuItem(
-                          value: status,
+                    items: TaskStatus.values.map((status) {
+                      return DropdownMenuItem(
+                        value: status,
                           child: Text(
                               status.toString().split('.').last),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
+                      );
+                    }).toList(),
+                    onChanged: (value) {
                         if (value != null) {
                           setStateDialog(() => selectedStatus = value);
                         }
@@ -435,18 +435,18 @@ class _TaskState extends State<Task> {
                       decoration:
                           const InputDecoration(labelText: "Priorité"),
                       items: TaskPriority.values.map((prio) {
-                        return DropdownMenuItem(
+                      return DropdownMenuItem(
                           value: prio,
                           child: Text(
                               prio.toString().split('.').last),
-                        );
-                      }).toList(),
+                      );
+                    }).toList(),
                       onChanged: (value) {
                         if (value != null) {
                           setStateDialog(() => selectedPriority = value);
                         }
-                      },
-                    ),
+          },
+        ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -456,7 +456,7 @@ class _TaskState extends State<Task> {
                                 ? "Échéance : ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}"
                                 : "Pas de date d'échéance",
                           ),
-                        ),
+          ),
                         IconButton(
                           icon: const Icon(Icons.calendar_today),
                           onPressed: () async {
@@ -471,9 +471,9 @@ class _TaskState extends State<Task> {
                               setStateDialog(
                                   () => selectedDueDate = pickedDate);
                             }
-                          },
-                        ),
-                      ],
+            },
+          ),
+        ],
                     ),
                     const SizedBox(height: 10),
                     Align(
@@ -489,9 +489,9 @@ class _TaskState extends State<Task> {
                         (user) => StatefulBuilder(
                           builder: (context2, innerSetState) {
                             final isChecked = assignedMembers.contains(user.id);
-                            return CheckboxListTile(
+                  return CheckboxListTile(
                               value: isChecked,
-                              title: Text(user.displayName),
+                    title: Text(user.displayName),
                               onChanged: (val) {
                                 innerSetState(() {
                                   if (val == true) {
@@ -504,30 +504,30 @@ class _TaskState extends State<Task> {
                                 });
                                 // also reflect changes to outer dialog state so UI updates
                                 setStateDialog(() {});
-                              },
+                  },
                             );
                           },
                         ),
                       )
                     else
                       const Text("⚠️ Aucun membre assigné à ce projet."),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
                   child: const Text('Annuler'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
+            ),
+            ElevatedButton(
+              onPressed: () async {
                     if (assignedMembers.isEmpty) {
                       // you can decide whether to allow empty assignment or not
-                      ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Sélectionnez au moins un membre')),
-                      );
-                      return;
-                    }
+                  );
+                  return;
+                }
 
                     final updatedTask = TaskModel(
                       id: task.id,
@@ -547,9 +547,8 @@ class _TaskState extends State<Task> {
                       commentsCount: task.commentsCount,
                     );
 
-                    await _firebaseService.updateTask(updatedTask);
-                    await _firebaseService.updateTaskMembers(
-                        task.id, assignedMembers);
+                 await widget.firebaseService.updateTask(updatedTask);
+await widget.firebaseService.updateTaskMembers(task.id, assignedMembers);
 
                     setState(() {
                       final index =
@@ -561,17 +560,17 @@ class _TaskState extends State<Task> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                           content: Text('✅ Tâche mise à jour !')),
-                    );
-                  },
+                  );
+              },
                   child: const Text('Enregistrer'),
-                ),
-              ],
-            );
+            ),
+          ],
+        );
           },
         );
-      },
-    );
-  }
+    },
+  );
+}
 
   // 🔹 SUPPRIMER TÂCHE
   void _showDeleteTaskDialog(TaskModel task) {
