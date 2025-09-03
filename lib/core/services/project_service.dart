@@ -115,14 +115,30 @@ class ProjectService {
   }
 
   // Supprimer un projet
-  Future<void> deleteProject(String projectId) async {
+ Future<void> deleteProject(String projectId) async {
     try {
-      await _firestore.collection('projects').doc(projectId).delete();
+      final tasksRef = _firestore.collection('tasks');
+      final projectRef = _firestore.collection('projects').doc(projectId);
+
+      // 1️⃣ Supprimer toutes les tâches associées
+      final tasksSnapshot =
+          await tasksRef.where('projectId', isEqualTo: projectId).get();
+
+      final batch = _firestore.batch(); // 🔹 batch pour supprimer en une seule opération
+      for (var doc in tasksSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // 2️⃣ Supprimer le projet
+      batch.delete(projectRef);
+
+      // 3️⃣ Exécuter le batch
+      await batch.commit();
 
       // 🔹 Supprimer du cache
       cachedProjects.removeWhere((p) => p.id == projectId);
 
-      print('Projet supprimé avec succès');
+      print('Projet et ses tâches supprimés avec succès.');
     } catch (e) {
       print('Erreur lors de la suppression du projet: $e');
       throw Exception('Erreur lors de la suppression du projet: $e');

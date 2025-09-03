@@ -536,4 +536,4 @@ class FirebaseService {
         return 'Archivé';
     }
   }
-}
+

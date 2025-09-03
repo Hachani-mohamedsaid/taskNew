@@ -38,6 +38,10 @@ class _ProjectCardState extends State<ProjectCard> {
   List<UserModel> allUsers = [];
   List<String> selectedMemberIds = [];
 
+  bool get membersAreEmails =>
+      widget.project.members.isNotEmpty &&
+      widget.project.members.first.contains('@');
+
   @override
   void initState() {
     super.initState();
@@ -56,12 +60,11 @@ class _ProjectCardState extends State<ProjectCard> {
   Future<void> _loadUsers() async {
     try {
       final users = await widget.firebaseService.getAllUsers();
-      if (!mounted) return; // ✅ Vérification avant setState
+      if (!mounted) return;
       setState(() {
         allUsers = users;
       });
     } catch (e) {
-      // Gérer l'erreur si nécessaire
       if (!mounted) return;
       setState(() {
         allUsers = [];
@@ -124,8 +127,8 @@ class _ProjectCardState extends State<ProjectCard> {
                     value: _selectedPriority,
                     decoration: const InputDecoration(labelText: 'Priorité'),
                     items: _priorities
-                        .map((p) =>
-                            DropdownMenuItem(value: p, child: Text(p.toUpperCase())))
+                        .map((p) => DropdownMenuItem(
+                            value: p, child: Text(p.toUpperCase())))
                         .toList(),
                     onChanged: (val) {
                       if (!mounted) return;
@@ -145,21 +148,27 @@ class _ProjectCardState extends State<ProjectCard> {
                     height: 200,
                     child: allUsers.isEmpty
                         ? const Center(child: CircularProgressIndicator())
-                        : ListView(
-                            shrinkWrap: true,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: allUsers.map((user) {
-                              final userId = user.id.toString();
-                              final isSelected = selectedMemberIds.contains(userId);
+                        : ListView.builder(
+                            itemCount: allUsers.length,
+                            itemBuilder: (context, index) {
+                              final user = allUsers[index];
+                              final userId =
+                                  membersAreEmails ? user.email : user.id;
+                              final isSelected =
+                                  selectedMemberIds.contains(userId);
 
                               return CheckboxListTile(
                                 value: isSelected,
                                 title: Text(user.displayName),
+                                subtitle: Text(user.email),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                contentPadding: EdgeInsets.zero,
                                 onChanged: (checked) {
-                                  if (!mounted) return;
                                   setState(() {
                                     if (checked == true) {
-                                      if (!selectedMemberIds.contains(userId)) {
+                                      if (!selectedMemberIds
+                                          .contains(userId)) {
                                         selectedMemberIds.add(userId);
                                       }
                                     } else {
@@ -168,7 +177,7 @@ class _ProjectCardState extends State<ProjectCard> {
                                   });
                                 },
                               );
-                            }).toList(),
+                            },
                           ),
                   ),
                   const SizedBox(height: 12),
@@ -178,8 +187,8 @@ class _ProjectCardState extends State<ProjectCard> {
                       child: Text(
                         "Membres choisis : " +
                             allUsers
-                                .where((u) =>
-                                    selectedMemberIds.contains(u.id.toString()))
+                                .where((u) => selectedMemberIds.contains(
+                                    membersAreEmails ? u.email : u.id))
                                 .map((u) => u.displayName)
                                 .join(", "),
                         style: const TextStyle(
@@ -197,7 +206,8 @@ class _ProjectCardState extends State<ProjectCard> {
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Annuler')),
-          ElevatedButton(onPressed: _saveProject, child: const Text('Enregistrer')),
+          ElevatedButton(
+              onPressed: _saveProject, child: const Text('Enregistrer')),
         ],
       ),
     );
@@ -218,7 +228,7 @@ class _ProjectCardState extends State<ProjectCard> {
 
     try {
       await widget.projectService.updateProject(updatedProject);
-      if (!mounted) return; // ✅ Vérification avant setState
+      if (!mounted) return;
       widget.onProjectUpdated?.call();
       Navigator.pop(context);
       if (!mounted) return;
@@ -228,6 +238,39 @@ class _ProjectCardState extends State<ProjectCard> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erreur: $e')));
+    }
+  }
+
+  Future<void> _deleteProject() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la suppression'),
+        content:
+            Text('Voulez-vous vraiment supprimer "${widget.project.name}" ?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Supprimer')),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await widget.projectService.deleteProject(widget.project.id);
+        if (!mounted) return;
+        widget.onProjectUpdated?.call();
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Projet supprimé avec succès')));
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur: $e')));
+      }
     }
   }
 
@@ -275,10 +318,8 @@ class _ProjectCardState extends State<ProjectCard> {
           onSelected: (value) {
             if (value == 'edit') {
               _openEditDialog();
-            } else {
-              if (!mounted) return;
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(SnackBar(content: Text('Action: $value')));
+            } else if (value == 'delete') {
+              _deleteProject();
             }
           },
         ),
@@ -286,4 +327,3 @@ class _ProjectCardState extends State<ProjectCard> {
     );
   }
 }
-
