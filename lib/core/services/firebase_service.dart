@@ -532,7 +532,7 @@ Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
 
       if (isCompleted) {
         completedTasks++;
-      } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
+      } else if (dueDate.isBefore(DateTime.now())) {
         overdueTasks++;
       } else {
         activeTasks++;
