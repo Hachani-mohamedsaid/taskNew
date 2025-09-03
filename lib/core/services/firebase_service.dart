@@ -524,20 +524,21 @@ Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
     int overdueTasks = 0;
 
     for (var doc in query.docs) {
-      final data = doc.data();
+  final data = doc.data();
 
-      bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
-      Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
-      DateTime? dueDate = dueDateTS?.toDate();
+  bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
+  Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
+  DateTime? dueDate = dueDateTS?.toDate();
 
-      if (isCompleted) {
-        completedTasks++;
-      } else if (dueDate.isBefore(DateTime.now())) {
-        overdueTasks++;
-      } else {
-        activeTasks++;
-      }
-    }
+  if (isCompleted) {
+    completedTasks++;
+  } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
+    overdueTasks++;
+  } else {
+    activeTasks++;
+  }
+}
+
 
     double completionPercentage = totalTasks > 0
         ? (completedTasks / totalTasks) * 100
