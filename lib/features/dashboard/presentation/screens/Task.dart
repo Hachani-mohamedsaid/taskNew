@@ -543,8 +543,7 @@ class _TaskState extends State<Task> {
                       createdBy: task.createdBy,
                       attachments: task.attachments,
                       subTasks: task.subTasks,
-                      comments: task.comments,
-                      commentsCount: task.commentsCount,
+                    
                     );
 
                  await widget.firebaseService.updateTask(updatedTask);

@@ -256,14 +256,7 @@ class FirebaseService {
             'createdAt': st.createdAt,
           }).toList(),
       'attachments': task.attachments,
-      'comments': task.comments.map((c) => {
-            'id': c.id,
-            'userId': c.userId,
-            'userName': c.userName,
-            'content': c.content,
-            'createdAt': c.createdAt,
-          }).toList(),
-      'commentsCount': task.commentsCount,
+    
     });
   }
 
@@ -289,8 +282,7 @@ class FirebaseService {
           createdBy: userId,
           subTasks: [],
           attachments: [],
-          comments: [],
-          commentsCount: 0,
+       
         )).toList();
   }
 
@@ -335,17 +327,8 @@ for (var doc in query.docs) {
                 .toList() ??
             [],
         attachments: List<String>.from(data['attachments'] ?? []),
-        comments: (data['comments'] as List<dynamic>?)
-                ?.map((c) => Comment(
-                      id: c['id'],
-                      userId: c['userId'],
-                      userName: c['userName'],
-                      content: c['content'],
-                      createdAt: (c['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-                    ))
-                .toList() ??
-            [],
-        commentsCount: data['commentsCount'] ?? 0,
+      
+       
       );
     }).toList();
   } catch (e) {
