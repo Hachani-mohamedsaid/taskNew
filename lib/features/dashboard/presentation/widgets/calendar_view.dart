@@ -1,13 +1,51 @@
 import 'package:flutter/material.dart';
 import '../../../../core/models/task_model.dart';
 import '../../../../core/models/user_model.dart';
+import '../../../../core/services/firebase_service.dart';
 
-class CalendarView extends StatelessWidget {
+class CalendarView extends StatefulWidget {
   final UserModel currentUser;
+
   const CalendarView({super.key, required this.currentUser});
 
-  void _showTasksForDay(BuildContext context, int day, List<TaskModel> tasks) {
-    final dayTasks = tasks.where((t) => t.dueDate?.day == day).toList();
+  @override
+  State<CalendarView> createState() => _CalendarViewState();
+}
+
+class _CalendarViewState extends State<CalendarView> {
+  final FirebaseService _firebaseService = FirebaseService();
+  List<TaskModel> tasks = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+
+  Future<void> _loadTasks() async {
+    setState(() => isLoading = true);
+    try {
+      final fetchedTasks =
+          await _firebaseService.getTasksCreatedByUser(widget.currentUser.id);
+      setState(() {
+        tasks = fetchedTasks;
+        isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Erreur chargement tâches: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _showTasksForDay(BuildContext context, int day) {
+    final dayTasks = tasks
+        .where((t) =>
+            t.dueDate?.day == day &&
+            t.dueDate?.month == DateTime.now().month &&
+            t.dueDate?.year == DateTime.now().year)
+        .toList();
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -32,11 +70,13 @@ class CalendarView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Tâches du $day',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Tâches du $day',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 18),
               if (dayTasks.isEmpty)
                 const Text('Aucune tâche pour ce jour.',
@@ -46,7 +86,8 @@ class CalendarView extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                     child: ListTile(
-                      leading: Icon(Icons.task_alt, color: Colors.blue[700]),
+                      leading:
+                          Icon(Icons.task_alt, color: Colors.blue[700]),
                       title: Text(task.title,
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(task.description,
@@ -72,7 +113,11 @@ class CalendarView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = TaskModel.demoTasks;
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final now = DateTime.now();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -93,10 +138,11 @@ class CalendarView extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'Décembre 2024',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  '${_monthName(now.month)} ${now.year}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
@@ -113,22 +159,29 @@ class CalendarView extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-
-          // Grille du calendrier
           _CalendarGrid(
-              tasks: tasks,
-              onDayTap: (day) => _showTasksForDay(context, day, tasks)),
-
+            tasks: tasks,
+            onDayTap: (day) => _showTasksForDay(context, day),
+          ),
           const SizedBox(height: 24),
-
-          // Légende
           const _CalendarLegend(),
         ],
       ),
     );
   }
+
+  String _monthName(int month) {
+    const months = [
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    return months[month - 1];
+  }
 }
 
+// =======================================
+// Grid du calendrier
+// =======================================
 class _CalendarGrid extends StatelessWidget {
   final List<TaskModel> tasks;
   final void Function(int day) onDayTap;
@@ -137,133 +190,75 @@ class _CalendarGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
+
     return Column(
       children: [
-        // En-têtes des jours
         Row(
-          children: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+          children: ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
               .map((day) => Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        day,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+                      child: Text(day, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ))
               .toList(),
         ),
+        ...List.generate((daysInMonth / 7).ceil(), (weekIndex) {
+          return Row(
+            children: List.generate(7, (dayIndex) {
+              final dayNumber = weekIndex * 7 + dayIndex + 1;
+              if(dayNumber > daysInMonth) return const Expanded(child: SizedBox());
 
-        // Grille des jours
-        ...List.generate(
-            5,
-            (weekIndex) => _CalendarWeek(
-                  weekIndex: weekIndex,
-                  tasks: tasks,
-                  onDayTap: onDayTap,
-                )),
+              final dayTasks = tasks.where((t) => t.dueDate?.day == dayNumber &&
+                  t.dueDate?.month == now.month &&
+                  t.dueDate?.year == now.year).toList();
+
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onDayTap(dayNumber),
+                  child: Container(
+                    height: 60,
+                    margin: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: 4,
+                          left: 4,
+                          child: Text(dayNumber.toString(),
+                              style: const TextStyle(fontSize: 12)),
+                        ),
+                        if(dayTasks.isNotEmpty)
+                          Positioned(
+                            bottom: 4,
+                            left: 4,
+                            right: 4,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: dayTasks.take(2).map((t) => Container(
+                                width: 6,
+                                height: 6,
+                                margin: const EdgeInsets.symmetric(horizontal: 1),
+                                decoration: BoxDecoration(
+                                  color: _getTaskColor(t),
+                                  shape: BoxShape.circle,
+                                ),
+                              )).toList(),
+                            ),
+                          )
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        }),
       ],
-    );
-  }
-}
-
-class _CalendarWeek extends StatelessWidget {
-  final int weekIndex;
-  final List<TaskModel> tasks;
-  final void Function(int day) onDayTap;
-
-  const _CalendarWeek({
-    required this.weekIndex,
-    required this.tasks,
-    required this.onDayTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(7, (dayIndex) {
-        final dayNumber = weekIndex * 7 + dayIndex + 1;
-        final dayTasks =
-            tasks.where((task) => task.dueDate?.day == dayNumber).toList();
-
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => onDayTap(dayNumber),
-            child: _CalendarDay(
-              dayNumber: dayNumber,
-              tasks: dayTasks,
-              isToday: dayNumber == DateTime.now().day,
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-class _CalendarDay extends StatelessWidget {
-  final int dayNumber;
-  final List<TaskModel> tasks;
-  final bool isToday;
-
-  const _CalendarDay({
-    required this.dayNumber,
-    required this.tasks,
-    required this.isToday,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 80,
-      margin: const EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        color: isToday ? Theme.of(context).primaryColor.withOpacity(0.1) : null,
-      ),
-      child: Stack(
-        children: [
-          // Numéro du jour
-          Positioned(
-            top: 4,
-            left: 4,
-            child: Text(
-              dayNumber.toString(),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                color: isToday ? Theme.of(context).primaryColor : null,
-              ),
-            ),
-          ),
-
-          // Indicateurs de tâches
-          if (tasks.isNotEmpty) ...[
-            Positioned(
-              bottom: 4,
-              left: 4,
-              right: 4,
-              child: Column(
-                children: tasks
-                    .take(2)
-                    .map((task) => Container(
-                          height: 4,
-                          margin: const EdgeInsets.only(bottom: 1),
-                          decoration: BoxDecoration(
-                            color: _getTaskColor(task),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ))
-                    .toList(),
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 
@@ -279,39 +274,21 @@ class _CalendarDay extends StatelessWidget {
   }
 }
 
+// =======================================
+// Légende des couleurs
+// =======================================
 class _CalendarLegend extends StatelessWidget {
   const _CalendarLegend();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Légende',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 8),
-        const Row(
-          children: [
-            _LegendItem(
-              color: Colors.red,
-              label: 'Priorité élevée',
-            ),
-            SizedBox(width: 16),
-            _LegendItem(
-              color: Colors.orange,
-              label: 'Priorité moyenne',
-            ),
-            SizedBox(width: 16),
-            _LegendItem(
-              color: Colors.green,
-              label: 'Priorité faible',
-            ),
-          ],
-        ),
+    return Row(
+      children: const [
+        _LegendItem(color: Colors.red, label: 'Priorité élevée'),
+        SizedBox(width: 16),
+        _LegendItem(color: Colors.orange, label: 'Priorité moyenne'),
+        SizedBox(width: 16),
+        _LegendItem(color: Colors.green, label: 'Priorité faible'),
       ],
     );
   }
@@ -321,28 +298,19 @@ class _LegendItem extends StatelessWidget {
   final Color color;
   final String label;
 
-  const _LegendItem({
-    required this.color,
-    required this.label,
-  });
+  const _LegendItem({required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
+            width: 12,
+            height: 12,
+            decoration:
+                BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }

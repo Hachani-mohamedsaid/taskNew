@@ -25,7 +25,8 @@ class DashboardHomeScreen extends StatefulWidget {
 }
 
 class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
-  late Future<Map<String, dynamic>> _statsFuture;
+  late Future<Map<String, dynamic>> _projectStatsFuture;
+  late Future<Map<String, dynamic>> _taskStatsFuture;
   late Future<List<ProjectModel>> _projectsFuture;
   late Future<List<TaskModel>> _recentTasksFuture;
 
@@ -35,22 +36,19 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     _loadData();
   }
 
-void _loadData() {
-  setState(() {
-    _statsFuture = widget.projectService.getProjectStats();
-    _projectsFuture =
-        widget.projectService.getProjectsByUser(widget.currentUser.id);
+  void _loadData() {
+    setState(() {
+      _projectStatsFuture = widget.projectService.getProjectStats();
+      _projectsFuture = widget.projectService.getProjectsByUser(widget.currentUser.id);
 
-   
-    _recentTasksFuture =
-        widget.firebaseService.getTasksCreatedByUser(widget.currentUser.id);
+      _recentTasksFuture = widget.firebaseService.getTasksCreatedByUser(widget.currentUser.id);
+      _taskStatsFuture = widget.firebaseService.getCreatedTaskStats(widget.currentUser.id);
 
-    _recentTasksFuture.then((tasks) {
-      debugPrint('Tâches créées par ${widget.currentUser.id}: ${tasks.map((t) => t.title).toList()}');
+      _recentTasksFuture.then((tasks) {
+        debugPrint('Tâches créées par ${widget.currentUser.id}: ${tasks.map((t) => t.title).toList()}');
+      });
     });
-  });
-}
-
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +70,8 @@ void _loadData() {
       ),
       body: FutureBuilder(
         future: Future.wait([
-          _statsFuture,
+          _projectStatsFuture,
+          _taskStatsFuture,
           _projectsFuture,
           _recentTasksFuture,
         ]),
@@ -85,9 +84,10 @@ void _loadData() {
             return Center(child: Text('Erreur: ${snapshot.error}'));
           }
 
-          final stats = snapshot.data![0] as Map<String, dynamic>;
-          final projects = snapshot.data![1] as List<ProjectModel>;
-          final recentTasks = snapshot.data![2] as List<TaskModel>;
+          final projectStats = snapshot.data![0] as Map<String, dynamic>;
+          final taskStats = snapshot.data![1] as Map<String, dynamic>;
+          final projects = snapshot.data![2] as List<ProjectModel>;
+          final recentTasks = snapshot.data![3] as List<TaskModel>;
 
           return RefreshIndicator(
             onRefresh: () async => _loadData(),
@@ -99,7 +99,8 @@ void _loadData() {
                 children: [
                   DashboardStats(
                     currentUser: widget.currentUser,
-                    projectStats: stats,
+                    projectStats: projectStats,
+                    taskStats: taskStats,
                   ),
                   const SizedBox(height: 24),
                   QuickActions(
@@ -110,23 +111,20 @@ void _loadData() {
                   ),
                   const SizedBox(height: 24),
                   RecentTasks(
-                  currentUser: widget.currentUser,
-                  tasks: recentTasks,
-                  onEdit: (task) => _showTaskDetails(context, task), // utilisé pour voir les détails
-                  onDelete: (task) {
-                    // Exemple simple : supprimer (à adapter avec ton service Firebase)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Suppression de ${task.title}')),
-                    );
-                  },
-                  onAssign: (task) {
-                    // Si tu veux gérer l’assignation
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Assigner ${task.title}')),
-                    );
-                  },
-                ),
-
+                    currentUser: widget.currentUser,
+                    tasks: recentTasks,
+                    onEdit: (task) => _showTaskDetails(context, task),
+                    onDelete: (task) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Suppression de ${task.title}')),
+                      );
+                    },
+                    onAssign: (task) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Assigner ${task.title}')),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -149,7 +147,7 @@ void _loadData() {
             const SizedBox(height: 16),
             Text('Statut: ${_statusText(task.status)}'),
             if (task.dueDate != null)
-              Text('Échéance: ${task.dueDate!.day}/${task.dueDate!.month}'),
+              Text('Échéance: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}'),
             const SizedBox(height: 16),
             Text('Priorité: ${_priorityText(task.priority)}'),
           ],

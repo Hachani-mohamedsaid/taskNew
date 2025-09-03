@@ -509,6 +509,60 @@ Future<void> updateTaskMembers(String taskId, List<String> members) async {
   }
 }
 
+/// Statistiques des tâches créées par l'utilisateur
+Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
+  try {
+    // 🔹 Récupérer toutes les tâches créées par l'utilisateur
+    final query = await _firestore
+        .collection('tasks')
+        .where('createdBy', isEqualTo: userId)
+        .get();
+
+    int totalTasks = query.docs.length;
+    int activeTasks = 0;
+    int completedTasks = 0;
+    int overdueTasks = 0;
+
+    for (var doc in query.docs) {
+      final data = doc.data();
+
+      bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
+      Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
+      DateTime? dueDate = dueDateTS?.toDate();
+
+      if (isCompleted) {
+        completedTasks++;
+      } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
+        overdueTasks++;
+      } else {
+        activeTasks++;
+      }
+    }
+
+    double completionPercentage = totalTasks > 0
+        ? (completedTasks / totalTasks) * 100
+        : 0;
+
+    return {
+      'totalTasks': totalTasks,
+      'activeTasks': activeTasks,
+      'completedTasks': completedTasks,
+      'overdueTasks': overdueTasks,
+      'completionPercentage': completionPercentage,
+    };
+  } catch (e) {
+    debugPrint('Erreur getCreatedTaskStats: $e');
+    return {
+      'totalTasks': 0,
+      'activeTasks': 0,
+      'completedTasks': 0,
+      'overdueTasks': 0,
+      'completionPercentage': 0,
+    };
+  }
+}
+
+
 
 
 
