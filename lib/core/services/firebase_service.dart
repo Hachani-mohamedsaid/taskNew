@@ -25,6 +25,25 @@ class FirebaseService {
     }
   }
 
+  /// Google Sign-In with Firebase
+  Future<UserCredential> signInWithGoogle({
+    required String idToken,
+    required String accessToken,
+  }) async {
+    try {
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      // Once signed in, return the UserCredential
+      return await FirebaseAuth.instance.signInWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    }
+  }
+
   /// ======== USERS ========
   Future<void> saveUserData({
     required String userId,
@@ -100,18 +119,23 @@ class FirebaseService {
   }
 
   Future<List<Map<String, dynamic>>> getClients() async {
-    final snapshot = await _firestore
-        .collection('users')
-        .where('role', isEqualTo: 'client')
-        .get();
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return {
-        'id': doc.id,
-        'displayName': data['displayName'] ?? '',
-        'email': data['email'] ?? '',
-      };
-    }).toList();
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'client')
+          .get();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'displayName': data['displayName'] ?? '',
+          'email': data['email'] ?? '',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('Erreur getClients: $e');
+      return [];
+    }
   }
 
   /// ======== PROJECTS ========
@@ -174,7 +198,7 @@ class FirebaseService {
           createdAt: (data['createdAt'] as Timestamp).toDate(),
           updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           members: List<String>.from(data['members'] ?? []),
-          ownerId: data['ownerId'],
+          ownerId: data['ownerId'] ?? '',
         );
       }).toList();
     } catch (e) {
@@ -236,124 +260,200 @@ class FirebaseService {
     }
   }
 
-  /// ======== TASKS ========
+  /// ======== TASKS (CRUD) ========
   Future<void> createTaskModel(TaskModel task) async {
-    await _firestore.collection('tasks').add({
-      'title': task.title,
-      'description': task.description,
-      'projectId': task.projectId,
-      'assignedTo': task.assignedTo,
-      'status': task.status.name,
-      'priority': task.priority.name,
-      'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
-      'createdAt': task.createdAt,
-      'updatedAt': task.updatedAt,
-      'createdBy': task.createdBy,
-      'subTasks': task.subTasks.map((st) => {
-            'id': st.id,
-            'title': st.title,
-            'isCompleted': st.isCompleted,
-            'createdAt': st.createdAt,
-          }).toList(),
-      'attachments': task.attachments,
-      'comments': task.comments.map((c) => {
-            'id': c.id,
-            'userId': c.userId,
-            'userName': c.userName,
-            'content': c.content,
-            'createdAt': c.createdAt,
-          }).toList(),
-      'commentsCount': task.commentsCount,
-    });
+    try {
+      await _firestore.collection('tasks').add({
+        'title': task.title,
+        'description': task.description,
+        'projectId': task.projectId,
+        'assignedTo': task.assignedTo,
+        'status': task.status.name,
+        'priority': task.priority.name,
+        'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
+        'createdAt': Timestamp.fromDate(task.createdAt),
+        'updatedAt': Timestamp.fromDate(task.updatedAt),
+        'createdBy': task.createdBy,
+        'subTasks': task.subTasks.map((st) => {
+              'id': st.id,
+              'title': st.title,
+              'isCompleted': st.isCompleted,
+              'createdAt': Timestamp.fromDate(st.createdAt),
+            }).toList(),
+        'attachments': task.attachments,
+        'comments': task.comments.map((c) => {
+              'id': c.id,
+              'userId': c.userId,
+              'userName': c.userName,
+              'content': c.content,
+              'createdAt': Timestamp.fromDate(c.createdAt),
+            }).toList(),
+        'commentsCount': task.commentsCount,
+      });
+      debugPrint("✅ Tâche créée avec succès");
+    } catch (e) {
+      debugPrint("❌ Erreur createTaskModel: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateTask(TaskModel task) async {
+    try {
+      await _firestore.collection('tasks').doc(task.id).update({
+        'title': task.title,
+        'description': task.description,
+        'status': task.status.name,
+        'priority': task.priority.name,
+        'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'assignedTo': task.assignedTo,
+      });
+      debugPrint("✅ Tâche ${task.id} mise à jour");
+    } catch (e) {
+      debugPrint("❌ Erreur updateTask: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).delete();
+      debugPrint("✅ Tâche $taskId supprimée");
+    } catch (e) {
+      debugPrint("❌ Erreur deleteTask: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> assignTask(String taskId, List<String> userIds) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).update({
+        'assignedTo': userIds,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint("✅ Tâche $taskId assignée à $userIds");
+    } catch (e) {
+      debugPrint("❌ Erreur assignTask: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<String>> getTaskMembers(String taskId) async {
+    try {
+      final doc = await _firestore.collection('tasks').doc(taskId).get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        final members = List<String>.from(data['assignedTo'] ?? []);
+        return members;
+      } else {
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération des membres de la tâche: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateTaskMembers(String taskId, List<String> members) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).update({'assignedTo': members});
+      debugPrint("✅ Membres de la tâche mis à jour avec succès");
+    } catch (e) {
+      debugPrint("❌ Erreur lors de la mise à jour des membres: $e");
+      throw Exception("Erreur lors de la mise à jour des membres: $e");
+    }
   }
 
   Future<List<TaskModel>> getTasksByUser(String userId, {int limit = 5}) async {
-    final recent = await getRecentTasks(userId, limit: limit);
-    return recent.map((t) => TaskModel(
-          id: t['id'],
-          title: t['title'],
-          description: t['description'],
-          projectId: t['projectId'],
-          assignedTo: [userId],
+    try {
+      final recent = await getRecentTasks(userId, limit: limit);
+      return recent.map((t) => TaskModel(
+            id: t['id'],
+            title: t['title'],
+            description: t['description'],
+            projectId: t['projectId'],
+            assignedTo: [userId],
+            status: TaskStatus.values.firstWhere(
+              (s) => s.name.toLowerCase() == (t['status'] ?? 'todo').toLowerCase(),
+              orElse: () => TaskStatus.todo,
+            ),
+            priority: TaskPriority.values.firstWhere(
+              (p) => p.name.toLowerCase() == (t['priority'] ?? 'medium').toLowerCase(),
+              orElse: () => TaskPriority.medium,
+            ),
+            dueDate: t['dueDate'],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            createdBy: userId,
+            subTasks: [],
+            attachments: [],
+            comments: [],
+            commentsCount: 0,
+          )).toList();
+    } catch (e) {
+      debugPrint('Erreur getTasksByUser: $e');
+      return [];
+    }
+  }
+
+  Future<List<TaskModel>> getTasksCreatedByUser(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('tasks')
+          .where('createdBy', isEqualTo: userId)
+          .get();
+      
+      debugPrint('Nombre de tâches trouvées: ${query.docs.length}');
+      
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return TaskModel(
+          id: doc.id,
+          title: data['title'] ?? 'Sans titre',
+          description: data['description'] ?? '',
+          projectId: data['projectId'] ?? '',
+          assignedTo: List<String>.from(data['assignedTo'] ?? []),
           status: TaskStatus.values.firstWhere(
-            (s) => s.name.toLowerCase() == (t['status'] ?? 'todo').toLowerCase(),
+            (s) => s.name.toLowerCase() == (data['status'] ?? 'todo').toLowerCase(),
             orElse: () => TaskStatus.todo,
           ),
           priority: TaskPriority.values.firstWhere(
-            (p) => p.name.toLowerCase() == (t['priority'] ?? 'medium').toLowerCase(),
+            (p) => p.name.toLowerCase() == (data['priority'] ?? 'medium').toLowerCase(),
             orElse: () => TaskPriority.medium,
           ),
-          dueDate: t['dueDate'],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          createdBy: userId,
-          subTasks: [],
-          attachments: [],
-          comments: [],
-          commentsCount: 0,
-        )).toList();
+          dueDate: (data['dueDate'] as Timestamp?)?.toDate(),
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          createdBy: data['createdBy'] ?? '',
+          subTasks: (data['subTasks'] as List<dynamic>?)
+                  ?.map((st) => SubTask(
+                        id: st['id'] ?? '',
+                        title: st['title'] ?? '',
+                        isCompleted: st['isCompleted'] ?? false,
+                        createdAt: (st['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                      ))
+                  .toList() ??
+              [],
+          attachments: List<String>.from(data['attachments'] ?? []),
+          comments: (data['comments'] as List<dynamic>?)
+                  ?.map((c) => Comment(
+                        id: c['id'] ?? '',
+                        userId: c['userId'] ?? '',
+                        userName: c['userName'] ?? '',
+                        content: c['content'] ?? '',
+                        createdAt: (c['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                      ))
+                  .toList() ??
+              [],
+          commentsCount: data['commentsCount'] ?? 0,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Erreur getTasksCreatedByUser: $e');
+      return [];
+    }
   }
-
-Future<List<TaskModel>> getTasksCreatedByUser(String userId) async {
-  try {
-    final query = await _firestore
-        .collection('tasks')
-        .where('createdBy', isEqualTo: userId) // 🔹 filtre sur l'auteur
-        .get();
-        debugPrint('Nombre de tâches trouvées: ${query.docs.length}');
-for (var doc in query.docs) {
-  debugPrint('Doc: ${doc.data()}');
-}
-
-    return query.docs.map((doc) {
-      final data = doc.data();
-      return TaskModel(
-        id: doc.id,
-        title: data['title'] ?? 'Sans titre',
-        description: data['description'] ?? '',
-        projectId: data['projectId'] ?? '',
-        assignedTo: List<String>.from(data['assignedTo'] ?? []),
-        status: TaskStatus.values.firstWhere(
-          (s) => s.name.toLowerCase() == (data['status'] ?? 'todo').toLowerCase(),
-          orElse: () => TaskStatus.todo,
-        ),
-        priority: TaskPriority.values.firstWhere(
-          (p) => p.name.toLowerCase() == (data['priority'] ?? 'medium').toLowerCase(),
-          orElse: () => TaskPriority.medium,
-        ),
-        dueDate: (data['dueDate'] as Timestamp?)?.toDate(),
-        createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        createdBy: data['createdBy'] ?? '',
-        subTasks: (data['subTasks'] as List<dynamic>?)
-                ?.map((st) => SubTask(
-                      id: st['id'],
-                      title: st['title'],
-                      isCompleted: st['isCompleted'] ?? false,
-                      createdAt: (st['createdAt'] as Timestamp?)?.toDate(),
-                    ))
-                .toList() ??
-            [],
-        attachments: List<String>.from(data['attachments'] ?? []),
-        comments: (data['comments'] as List<dynamic>?)
-                ?.map((c) => Comment(
-                      id: c['id'],
-                      userId: c['userId'],
-                      userName: c['userName'],
-                      content: c['content'],
-                      createdAt: (c['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-                    ))
-                .toList() ??
-            [],
-        commentsCount: data['commentsCount'] ?? 0,
-      );
-    }).toList();
-  } catch (e) {
-    debugPrint('Erreur getTasksCreatedByUser: $e');
-    return [];
-  }
-}
-
 
   Future<List<Map<String, dynamic>>> getRecentTasks(String userId, {int limit = 5}) async {
     try {
@@ -437,134 +537,3 @@ for (var doc in query.docs) {
     }
   }
 
-
-/// ======== TASKS (CRUD) ========
-Future<void> updateTask(TaskModel task) async {
-  try {
-    await _firestore.collection('tasks').doc(task.id).update({
-      'title': task.title,
-      'description': task.description,
-      'status': task.status.name,
-      'priority': task.priority.name,
-      'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'assignedTo': task.assignedTo,
-    });
-    debugPrint("✅ Tâche ${task.id} mise à jour");
-  } catch (e) {
-    debugPrint("❌ Erreur updateTask: $e");
-    rethrow;
-  }
-}
-
-Future<void> deleteTask(String taskId) async {
-  try {
-    await _firestore.collection('tasks').doc(taskId).delete();
-    debugPrint("✅ Tâche $taskId supprimée");
-  } catch (e) {
-    debugPrint("❌ Erreur deleteTask: $e");
-    rethrow;
-  }
-}
-
-Future<void> assignTask(String taskId, List<String> userIds) async {
-  try {
-    await _firestore.collection('tasks').doc(taskId).update({
-      'assignedTo': userIds,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    debugPrint("✅ Tâche $taskId assignée à $userIds");
-  } catch (e) {
-    debugPrint("❌ Erreur assignTask: $e");
-    rethrow;
-  }
-}
-
-// 🔹 Récupérer les membres assignés à une tâche
-Future<List<String>> getTaskMembers(String taskId) async {
-  try {
-    final doc = await _firestore.collection('tasks').doc(taskId).get();
-
-    if (doc.exists) {
-      final data = doc.data()!;
-      final members = List<String>.from(data['assignedTo'] ?? []);
-      return members;
-    } else {
-      return [];
-    }
-  } catch (e) {
-    print('Erreur lors de la récupération des membres de la tâche: $e');
-    return [];
-  }
-}
-
-// 🔹 Mettre à jour les membres assignés à une tâche
-Future<void> updateTaskMembers(String taskId, List<String> members) async {
-  try {
-    await _firestore.collection('tasks').doc(taskId).update({'assignedTo': members});
-    print("Membres de la tâche mis à jour avec succès");
-  } catch (e) {
-    print("Erreur lors de la mise à jour des membres: $e");
-    throw Exception("Erreur lors de la mise à jour des membres: $e");
-  }
-}
-
-/// Statistiques des tâches créées par l'utilisateur
-Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
-  try {
-    // 🔹 Récupérer toutes les tâches créées par l'utilisateur
-    final query = await _firestore
-        .collection('tasks')
-        .where('createdBy', isEqualTo: userId)
-        .get();
-
-    int totalTasks = query.docs.length;
-    int activeTasks = 0;
-    int completedTasks = 0;
-    int overdueTasks = 0;
-
-    for (var doc in query.docs) {
-  final data = doc.data();
-
-  bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
-  Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
-  DateTime? dueDate = dueDateTS?.toDate();
-
-  if (isCompleted) {
-    completedTasks++;
-  } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
-    overdueTasks++;
-  } else {
-    activeTasks++;
-  }
-}
-
-
-    double completionPercentage = totalTasks > 0
-        ? (completedTasks / totalTasks) * 100
-        : 0;
-
-    return {
-      'totalTasks': totalTasks,
-      'activeTasks': activeTasks,
-      'completedTasks': completedTasks,
-      'overdueTasks': overdueTasks,
-      'completionPercentage': completionPercentage,
-    };
-  } catch (e) {
-    debugPrint('Erreur getCreatedTaskStats: $e');
-    return {
-      'totalTasks': 0,
-      'activeTasks': 0,
-      'completedTasks': 0,
-      'overdueTasks': 0,
-      'completionPercentage': 0,
-    };
-  }
-}
-
-
-
-
-
-}

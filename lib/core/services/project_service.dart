@@ -204,7 +204,5 @@ class ProjectService {
   Future<void> loadProjects() async {
   await getAllProjects();
 }
-
-
 }
 

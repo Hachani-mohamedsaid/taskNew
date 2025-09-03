@@ -20,7 +20,7 @@ class UserModel {
     required this.role,
     required this.createdAt,
     required this.lastSeen,
-    this.isActive = true,
+    this.isActive = true, String? photoUrl,
   });
 
   /// ✅ Méthode copyWith
