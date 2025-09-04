@@ -1,10 +1,20 @@
+import 'package:collaborative_task_manager/core/models/notification_model.dart';
+import 'package:collaborative_task_manager/core/models/user_model.dart';
+import 'package:collaborative_task_manager/core/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 class TasksTab extends StatefulWidget {
-  const TasksTab({super.key});
+  final UserModel currentUser;
+  final FirebaseService firebaseService;
+
+  const TasksTab({
+    super.key,
+    required this.currentUser,
+    required this.firebaseService,
+  });
 
   @override
   State<TasksTab> createState() => _TasksTabState();
@@ -41,19 +51,39 @@ class _TasksTabState extends State<TasksTab> {
         'updatedAt': Timestamp.now(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Statut mis à jour: ${_getStatusText(newStatus)}'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Récupérer les détails de la tâche pour la notification
+      final taskDoc = await _firestore.collection('tasks').doc(taskId).get();
+      final taskData = taskDoc.data() as Map<String, dynamic>;
+      final taskTitle = taskData['title'] ?? 'Sans titre';
+      final createdBy = taskData['createdBy'] ?? '';
+
+      // Envoyer une notification à l'admin si la tâche est terminée
+      if (newStatus == 'done' && createdBy != widget.currentUser.id) {
+        await widget.firebaseService.notifyTaskCompleted(
+          taskId: taskId,
+          taskTitle: taskTitle,
+          completerId: widget.currentUser.id,
+          projectOwnerId: createdBy,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Statut mis à jour: ${_getStatusText(newStatus)}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: $error'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -100,15 +130,19 @@ class _TasksTabState extends State<TasksTab> {
               }
 
               try {
+                // Récupérer l'admin qui a créé la tâche
+                final taskDoc = await _firestore.collection('tasks').doc(taskId).get();
+                final taskData = taskDoc.data() as Map<String, dynamic>;
+                final createdBy = taskData['createdBy'] ?? '';
+
                 // Enregistrer le rapport dans la collection 'problem_reports'
                 await _firestore.collection('problem_reports').add({
                   'taskId': taskId,
                   'taskTitle': taskTitle,
                   'description': problemController.text.trim(),
                   'reportedBy': currentUser?.uid,
-                  'reportedByName':
-                      currentUser?.displayName ?? currentUser?.email,
-                  'status': 'pending', // pending, reviewed, resolved
+                  'reportedByName': currentUser?.displayName ?? currentUser?.email,
+                  'status': 'pending',
                   'createdAt': Timestamp.now(),
                   'updatedAt': Timestamp.now(),
                 });
@@ -120,8 +154,7 @@ class _TasksTabState extends State<TasksTab> {
                       'type': 'problem_report',
                       'message': problemController.text.trim(),
                       'createdBy': currentUser?.uid,
-                      'createdByName':
-                          currentUser?.displayName ?? currentUser?.email,
+                      'createdByName': currentUser?.displayName ?? currentUser?.email,
                       'createdAt': Timestamp.now(),
                       'isProblem': true,
                     }
@@ -129,6 +162,22 @@ class _TasksTabState extends State<TasksTab> {
                   'commentsCount': FieldValue.increment(1),
                   'updatedAt': Timestamp.now(),
                 });
+
+                // Envoyer une notification à l'admin
+                if (createdBy.isNotEmpty) {
+                  await widget.firebaseService.sendNotification(
+                    title: '🚨 Problème signalé sur une tâche',
+                    message: '${currentUser?.displayName ?? "Un prestataire"} a signalé un problème sur la tâche "$taskTitle"',
+                    type: NotificationType.system,
+                    senderId: widget.currentUser.id,
+                    receiverId: createdBy,
+                    data: {
+                      'taskId': taskId,
+                      'taskTitle': taskTitle,
+                      'type': 'problem_report'
+                    },
+                  );
+                }
 
                 if (mounted) {
                   Navigator.of(context).pop();
@@ -151,8 +200,8 @@ class _TasksTabState extends State<TasksTab> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red, // Couleur de fond rouge
-              foregroundColor: Colors.white, // Couleur du texte blanc
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Envoyer le rapport'),
           ),
@@ -252,7 +301,7 @@ class _TasksTabState extends State<TasksTab> {
     return ElevatedButton.icon(
       onPressed: () => _reportProblem(taskId, taskTitle),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.red, // Changé en rouge pour plus de visibilité
+        backgroundColor: Colors.red,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(
@@ -260,7 +309,7 @@ class _TasksTabState extends State<TasksTab> {
         ),
       ),
       icon: const Icon(
-        Icons.warning_amber, // Icône d'avertissement
+        Icons.warning_amber,
         size: 16,
       ),
       label: const Text(

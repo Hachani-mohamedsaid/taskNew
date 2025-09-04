@@ -10,6 +10,7 @@ import 'package:cloud_firestore_web/cloud_firestore_web.dart';
 import 'package:file_picker/_internal/file_picker_web.dart';
 import 'package:firebase_auth_web/firebase_auth_web.dart';
 import 'package:firebase_core_web/firebase_core_web.dart';
+import 'package:firebase_messaging_web/firebase_messaging_web.dart';
 import 'package:firebase_storage_web/firebase_storage_web.dart';
 import 'package:flutter_inappwebview_web/web/main.dart';
 import 'package:g_recaptcha_v3/src/g_recaptcha_v3_web.dart';
@@ -23,6 +24,7 @@ void registerPlugins([final Registrar? pluginRegistrar]) {
   FilePickerWeb.registerWith(registrar);
   FirebaseAuthWeb.registerWith(registrar);
   FirebaseCoreWeb.registerWith(registrar);
+  FirebaseMessagingWeb.registerWith(registrar);
   FirebaseStorageWeb.registerWith(registrar);
   InAppWebViewFlutterPlugin.registerWith(registrar);
   GRecaptchaV3PlatformInterface.registerWith(registrar);

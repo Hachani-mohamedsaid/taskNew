@@ -1,3 +1,4 @@
+import 'package:collaborative_task_manager/core/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,10 +7,12 @@ import '../../../../core/services/profile_image_service.dart';
 
 class DashboardTab extends StatefulWidget {
   final UserModel currentUser;
+  final FirebaseService firebaseService;
 
   const DashboardTab({
     super.key,
     required this.currentUser,
+    required this.firebaseService,
   });
 
   @override
@@ -26,7 +29,7 @@ class _DashboardTabState extends State<DashboardTab> {
   int _activeProjects = 0;
   int _totalHoursWorked = 0;
   List<Map<String, dynamic>> _recentTasks = [];
-  Map<String, String> _projectNames = {}; // Cache pour les noms de projets
+  Map<String, String> _projectNames = {};
   bool _isLoading = true;
 
   @override
@@ -83,7 +86,7 @@ class _DashboardTabState extends State<DashboardTab> {
       await _loadProjectNames(projectIds.toList());
 
       // Calculer les heures travaillées (exemple simplifié)
-      final hoursWorked = completed * 2; // Exemple: 2 heures par tâche terminée
+      final hoursWorked = completed * 2;
 
       setState(() {
         _tasksInProgress = inProgress;
@@ -92,7 +95,7 @@ class _DashboardTabState extends State<DashboardTab> {
         _totalHoursWorked = hoursWorked;
       });
     } catch (error) {
-      print('Erreur lors du chargement des statistiques: $error');
+      debugPrint('Erreur lors du chargement des statistiques: $error');
     }
   }
 
@@ -109,10 +112,7 @@ class _DashboardTabState extends State<DashboardTab> {
           
           if (projectDoc.exists) {
             final projectData = projectDoc.data() as Map<String, dynamic>?;
-            final projectName = projectData?['name'] ?? 
-                               projectData?['title'] ?? 
-                               projectData?['projectName'] ??
-                               'Projet sans nom';
+            final projectName = projectData?['name'] ?? 'Projet sans nom';
             _projectNames[projectId] = projectName;
           } else {
             _projectNames[projectId] = 'Projet inconnu';
@@ -120,7 +120,7 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       }
     } catch (error) {
-      print('Erreur lors du chargement des noms de projets: $error');
+      debugPrint('Erreur lors du chargement des noms de projets: $error');
     }
   }
 
@@ -157,14 +157,13 @@ class _DashboardTabState extends State<DashboardTab> {
         }
       }
 
-      // Charger les noms des projets pour les tâches récentes
       await _loadProjectNames(projectIds.toList());
 
       setState(() {
         _recentTasks = tasks;
       });
     } catch (error) {
-      print('Erreur lors du chargement des tâches récentes: $error');
+      debugPrint('Erreur lors du chargement des tâches récentes: $error');
     }
   }
 
@@ -203,10 +202,19 @@ class _DashboardTabState extends State<DashboardTab> {
     return _projectNames[projectId] ?? 'Chargement...';
   }
 
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'Date inconnue';
-    final date = timestamp.toDate();
-    return '${date.day}/${date.month}/${date.year}';
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}j';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}min';
+    } else {
+      return 'À l\'instant';
+    }
   }
 
   @override
@@ -224,7 +232,7 @@ class _DashboardTabState extends State<DashboardTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // En-tête de bienvenue avec profil amélioré
+            // En-tête de bienvenue avec profil
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -243,7 +251,6 @@ class _DashboardTabState extends State<DashboardTab> {
                   children: [
                     Row(
                       children: [
-                        // Avatar avec image de profil ou initiales
                         CircleAvatar(
                           radius: 40,
                           backgroundColor: Colors.white,
@@ -319,11 +326,9 @@ class _DashboardTabState extends State<DashboardTab> {
                             ],
                           ),
                         ),
-                        // 
                       ],
                     ),
                     const SizedBox(height: 20),
-                    // Informations supplémentaires
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
@@ -441,9 +446,12 @@ class _DashboardTabState extends State<DashboardTab> {
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: statusColor,
-              child: const Icon(Icons.assignment, color: Colors.white),
+              child: const Icon(Icons.assignment, color: Colors.white, size: 20),
             ),
-            title: Text(task['title']),
+            title: Text(
+              task['title'],
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
             subtitle: Text('Projet: $projectName'),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -484,146 +492,5 @@ class _DashboardTabState extends State<DashboardTab> {
         ),
       ],
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays}j';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}min';
-    } else {
-      return 'À l\'instant';
-    }
-  }
-
-  void _showProfileDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.green[100],
-                backgroundImage: widget.currentUser.photoURL != null
-                    ? NetworkImage(widget.currentUser.photoURL!)
-                    : null,
-                child: widget.currentUser.photoURL == null
-                    ? Text(
-                        widget.currentUser.displayName
-                            .split(' ')
-                            .map((e) => e.isNotEmpty ? e[0] : '')
-                            .join('')
-                            .toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                widget.currentUser.displayName,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.green[100],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'PRESTATAIRE',
-                  style: TextStyle(
-                    color: Colors.green[700],
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildProfileInfo(Icons.email, 'Email', widget.currentUser.email),
-              const SizedBox(height: 8),
-              _buildProfileInfo(Icons.calendar_today, 'Membre depuis',
-                  '${widget.currentUser.createdAt.day}/${widget.currentUser.createdAt.month}/${widget.currentUser.createdAt.year}'),
-              const SizedBox(height: 8),
-              _buildProfileInfo(Icons.access_time, 'Dernière connexion',
-                  '${widget.currentUser.lastSeen.day}/${widget.currentUser.lastSeen.month}/${widget.currentUser.lastSeen.year}'),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Fermer'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileInfo(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.grey[600]),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _logout(BuildContext context) async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      Navigator.of(context).pushReplacementNamed('/login');
-    } catch (e) {
-      print('Erreur lors de la déconnexion: $e');
-    }
   }
 }

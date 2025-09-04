@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collaborative_task_manager/core/models/ProjectStatus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../models/project_model.dart';
 import '../models/task_model.dart';
-import '../models/ProjectStatus.dart';
+
+import '../models/notification_model.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -144,6 +146,14 @@ class FirebaseService {
         'assignedUsers': members,
         'progress': 0,
       });
+
+      // Notifier les membres du nouveau projet
+      await notifyProjectCreated(
+        projectId: docRef.id,
+        projectName: name,
+        creatorId: ownerId,
+        memberIds: members,
+      );
     } catch (e, stack) {
       debugPrint('Erreur Firestore lors de l\'ajout du projet: $e\n$stack');
       rethrow;
@@ -238,7 +248,7 @@ class FirebaseService {
 
   /// ======== TASKS ========
   Future<void> createTaskModel(TaskModel task) async {
-    await _firestore.collection('tasks').add({
+    final docRef = await _firestore.collection('tasks').add({
       'title': task.title,
       'description': task.description,
       'projectId': task.projectId,
@@ -246,102 +256,31 @@ class FirebaseService {
       'status': task.status.name,
       'priority': task.priority.name,
       'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
-      'createdAt': task.createdAt,
-      'updatedAt': task.updatedAt,
+      'createdAt': Timestamp.fromDate(task.createdAt),
+      'updatedAt': Timestamp.fromDate(task.updatedAt),
       'createdBy': task.createdBy,
       'subTasks': task.subTasks.map((st) => {
             'id': st.id,
             'title': st.title,
             'isCompleted': st.isCompleted,
-            'createdAt': st.createdAt,
+            'createdAt': st.createdAt != null ? Timestamp.fromDate(st.createdAt!) : null,
           }).toList(),
       'attachments': task.attachments,
-    
     });
+
+    // Notifier les utilisateurs assignés
+    await notifyTaskAssigned(
+      taskId: docRef.id,
+      taskTitle: task.title,
+      assignerId: task.createdBy,
+      assigneeIds: task.assignedTo,
+    );
   }
 
   Future<List<TaskModel>> getTasksByUser(String userId, {int limit = 5}) async {
-    final recent = await getRecentTasks(userId, limit: limit);
-    return recent.map((t) => TaskModel(
-          id: t['id'],
-          title: t['title'],
-          description: t['description'],
-          projectId: t['projectId'],
-          assignedTo: [userId],
-          status: TaskStatus.values.firstWhere(
-            (s) => s.name.toLowerCase() == (t['status'] ?? 'todo').toLowerCase(),
-            orElse: () => TaskStatus.todo,
-          ),
-          priority: TaskPriority.values.firstWhere(
-            (p) => p.name.toLowerCase() == (t['priority'] ?? 'medium').toLowerCase(),
-            orElse: () => TaskPriority.medium,
-          ),
-          dueDate: t['dueDate'],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          createdBy: userId,
-          subTasks: [],
-          attachments: [],
-       
-        )).toList();
-  }
-
-Future<List<TaskModel>> getTasksCreatedByUser(String userId) async {
-  try {
-    final query = await _firestore
-        .collection('tasks')
-        .where('createdBy', isEqualTo: userId) // 🔹 filtre sur l'auteur
-        .get();
-        debugPrint('Nombre de tâches trouvées: ${query.docs.length}');
-for (var doc in query.docs) {
-  debugPrint('Doc: ${doc.data()}');
-}
-
-    return query.docs.map((doc) {
-      final data = doc.data();
-      return TaskModel(
-        id: doc.id,
-        title: data['title'] ?? 'Sans titre',
-        description: data['description'] ?? '',
-        projectId: data['projectId'] ?? '',
-        assignedTo: List<String>.from(data['assignedTo'] ?? []),
-        status: TaskStatus.values.firstWhere(
-          (s) => s.name.toLowerCase() == (data['status'] ?? 'todo').toLowerCase(),
-          orElse: () => TaskStatus.todo,
-        ),
-        priority: TaskPriority.values.firstWhere(
-          (p) => p.name.toLowerCase() == (data['priority'] ?? 'medium').toLowerCase(),
-          orElse: () => TaskPriority.medium,
-        ),
-        dueDate: (data['dueDate'] as Timestamp?)?.toDate(),
-        createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        createdBy: data['createdBy'] ?? '',
-        subTasks: (data['subTasks'] as List<dynamic>?)
-                ?.map((st) => SubTask(
-                      id: st['id'],
-                      title: st['title'],
-                      isCompleted: st['isCompleted'] ?? false,
-                      createdAt: (st['createdAt'] as Timestamp?)?.toDate(),
-                    ))
-                .toList() ??
-            [],
-        attachments: List<String>.from(data['attachments'] ?? []),
-      
-       
-      );
-    }).toList();
-  } catch (e) {
-    debugPrint('Erreur getTasksCreatedByUser: $e');
-    return [];
-  }
-}
-
-
-  Future<List<Map<String, dynamic>>> getRecentTasks(String userId, {int limit = 5}) async {
     try {
       final query = await _firestore
-          .collectionGroup('tasks')
+          .collection('tasks')
           .where('assignedTo', arrayContains: userId)
           .orderBy('dueDate', descending: false)
           .limit(limit)
@@ -349,21 +288,441 @@ for (var doc in query.docs) {
 
       return query.docs.map((doc) {
         final data = doc.data();
-        return {
-          'id': doc.id,
-          'projectId': doc.reference.parent.parent?.id,
-          'title': data['title'] ?? 'Sans titre',
-          'description': data['description'] ?? '',
-          'status': data['status'] ?? 'todo',
-          'priority': data['priority'] ?? 'medium',
-          'isCompleted': data['isCompleted'] ?? false,
-          'dueDate': (data['dueDate'] as Timestamp?)?.toDate(),
-        };
+        return TaskModel(
+          id: doc.id,
+          title: data['title'] ?? 'Sans titre',
+          description: data['description'] ?? '',
+          projectId: data['projectId'] ?? '',
+          assignedTo: List<String>.from(data['assignedTo'] ?? []),
+          status: TaskStatus.values.firstWhere(
+            (s) => s.name.toLowerCase() == (data['status'] ?? 'todo').toLowerCase(),
+            orElse: () => TaskStatus.todo,
+          ),
+          priority: TaskPriority.values.firstWhere(
+            (p) => p.name.toLowerCase() == (data['priority'] ?? 'medium').toLowerCase(),
+            orElse: () => TaskPriority.medium,
+          ),
+          dueDate: (data['dueDate'] as Timestamp?)?.toDate(),
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          createdBy: data['createdBy'] ?? '',
+          subTasks: (data['subTasks'] as List<dynamic>?)
+                  ?.map((st) => SubTask(
+                        id: st['id'] ?? '',
+                        title: st['title'] ?? '',
+                        isCompleted: st['isCompleted'] ?? false,
+                        createdAt: (st['createdAt'] as Timestamp?)?.toDate(),
+                      ))
+                  .toList() ??
+              [],
+          attachments: List<String>.from(data['attachments'] ?? []),
+        );
       }).toList();
     } catch (e) {
-      debugPrint('Error fetching recent tasks: ${e.toString()}');
+      debugPrint('Erreur getTasksByUser: $e');
       return [];
     }
+  }
+
+  Future<List<TaskModel>> getTasksCreatedByUser(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('tasks')
+          .where('createdBy', isEqualTo: userId)
+          .get();
+      
+      debugPrint('Nombre de tâches trouvées: ${query.docs.length}');
+
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return TaskModel(
+          id: doc.id,
+          title: data['title'] ?? 'Sans titre',
+          description: data['description'] ?? '',
+          projectId: data['projectId'] ?? '',
+          assignedTo: List<String>.from(data['assignedTo'] ?? []),
+          status: TaskStatus.values.firstWhere(
+            (s) => s.name.toLowerCase() == (data['status'] ?? 'todo').toLowerCase(),
+            orElse: () => TaskStatus.todo,
+          ),
+          priority: TaskPriority.values.firstWhere(
+            (p) => p.name.toLowerCase() == (data['priority'] ?? 'medium').toLowerCase(),
+            orElse: () => TaskPriority.medium,
+          ),
+          dueDate: (data['dueDate'] as Timestamp?)?.toDate(),
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          createdBy: data['createdBy'] ?? '',
+          subTasks: (data['subTasks'] as List<dynamic>?)
+                  ?.map((st) => SubTask(
+                        id: st['id'] ?? '',
+                        title: st['title'] ?? '',
+                        isCompleted: st['isCompleted'] ?? false,
+                        createdAt: (st['createdAt'] as Timestamp?)?.toDate(),
+                      ))
+                  .toList() ??
+              [],
+          attachments: List<String>.from(data['attachments'] ?? []),
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Erreur getTasksCreatedByUser: $e');
+      return [];
+    }
+  }
+
+  /// ======== TASKS (CRUD) ========
+  Future<void> updateTask(TaskModel task) async {
+    try {
+      await _firestore.collection('tasks').doc(task.id).update({
+        'title': task.title,
+        'description': task.description,
+        'status': task.status.name,
+        'priority': task.priority.name,
+        'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'assignedTo': task.assignedTo,
+      });
+      debugPrint("✅ Tâche ${task.id} mise à jour");
+    } catch (e) {
+      debugPrint("❌ Erreur updateTask: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).delete();
+      debugPrint("✅ Tâche $taskId supprimée");
+    } catch (e) {
+      debugPrint("❌ Erreur deleteTask: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> assignTask(String taskId, List<String> userIds) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).update({
+        'assignedTo': userIds,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      debugPrint("✅ Tâche $taskId assignée à $userIds");
+    } catch (e) {
+      debugPrint("❌ Erreur assignTask: $e");
+      rethrow;
+    }
+  }
+
+  // 🔹 Récupérer les membres assignés à une tâche
+  Future<List<String>> getTaskMembers(String taskId) async {
+    try {
+      final doc = await _firestore.collection('tasks').doc(taskId).get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        final members = List<String>.from(data['assignedTo'] ?? []);
+        return members;
+      } else {
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Erreur lors de la récupération des membres de la tâche: $e');
+      return [];
+    }
+  }
+
+  // 🔹 Mettre à jour les membres assignés à une tâche
+  Future<void> updateTaskMembers(String taskId, List<String> members) async {
+    try {
+      await _firestore.collection('tasks').doc(taskId).update({'assignedTo': members});
+      debugPrint("Membres de la tâche mis à jour avec succès");
+    } catch (e) {
+      debugPrint("Erreur lors de la mise à jour des membres: $e");
+      throw Exception("Erreur lors de la mise à jour des membres: $e");
+    }
+  }
+
+  /// Statistiques des tâches créées par l'utilisateur
+  Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('tasks')
+          .where('createdBy', isEqualTo: userId)
+          .get();
+
+      int totalTasks = query.docs.length;
+      int activeTasks = 0;
+      int completedTasks = 0;
+      int overdueTasks = 0;
+
+      for (var doc in query.docs) {
+        final data = doc.data();
+
+        bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
+        Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
+        DateTime? dueDate = dueDateTS?.toDate();
+
+        if (isCompleted) {
+          completedTasks++;
+        } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
+          overdueTasks++;
+        } else {
+          activeTasks++;
+        }
+      }
+
+      double completionPercentage = totalTasks > 0
+          ? (completedTasks / totalTasks) * 100
+          : 0;
+
+      return {
+        'totalTasks': totalTasks,
+        'activeTasks': activeTasks,
+        'completedTasks': completedTasks,
+        'overdueTasks': overdueTasks,
+        'completionPercentage': completionPercentage,
+      };
+    } catch (e) {
+      debugPrint('Erreur getCreatedTaskStats: $e');
+      return {
+        'totalTasks': 0,
+        'activeTasks': 0,
+        'completedTasks': 0,
+        'overdueTasks': 0,
+        'completionPercentage': 0,
+      };
+    }
+  }
+
+  /// ======== NOTIFICATIONS ========
+  Future<void> sendNotification({
+    required String title,
+    required String message,
+    required NotificationType type,
+    required String senderId,
+    required String receiverId,
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final docRef = _firestore.collection('notifications').doc();
+      
+      final notificationData = {
+        'id': docRef.id,
+        'title': title,
+        'message': message,
+        'type': type.toString().split('.').last,
+        'senderId': senderId,
+        'receiverId': receiverId,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        if (data != null) 'data': data,
+      };
+
+      await docRef.set(notificationData);
+      
+      debugPrint('📨 Notification envoyée à $receiverId: $title');
+      
+      // Envoyer une notification push si l'utilisateur n'est pas en ligne
+      await _sendPushNotification(notificationData);
+    } catch (e) {
+      debugPrint('❌ Erreur envoi notification: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _sendPushNotification(Map<String, dynamic> notification) async {
+    // Implémentez ici l'envoi de notifications push FCM
+    debugPrint('📲 Push notification à ${notification['receiverId']}');
+  }
+
+  Stream<List<NotificationModel>> getUserNotifications(String userId) {
+    return _firestore
+        .collection('notifications')
+        .where('receiverId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) {
+              final data = doc.data();
+              return NotificationModel.fromJson({
+                ...data,
+                'id': doc.id,
+              });
+            })
+            .toList());
+  }
+
+  Stream<int> getUnreadCountStream(String userId) {
+    return _firestore
+        .collection('notifications')
+        .where('receiverId', isEqualTo: userId)
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
+  Future<void> markAsRead(String notificationId) async {
+    try {
+      await _firestore
+          .collection('notifications')
+          .doc(notificationId)
+          .update({'isRead': true});
+      debugPrint('✅ Notification $notificationId marquée comme lue');
+    } catch (e) {
+      debugPrint('❌ Erreur markAsRead: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> markAllAsRead(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('notifications')
+          .where('receiverId', isEqualTo: userId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      final batch = _firestore.batch();
+      for (var doc in query.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+      await batch.commit();
+      debugPrint('✅ Toutes les notifications marquées comme lues pour $userId');
+    } catch (e) {
+      debugPrint('❌ Erreur markAllAsRead: $e');
+      rethrow;
+    }
+  }
+
+  Future<int> getUnreadCount(String userId) async {
+    try {
+      final query = await _firestore
+          .collection('notifications')
+          .where('receiverId', isEqualTo: userId)
+          .where('isRead', isEqualTo: false)
+          .get();
+      return query.docs.length;
+    } catch (e) {
+      debugPrint('❌ Erreur getUnreadCount: $e');
+      return 0;
+    }
+  }
+
+  /// ======== NOTIFICATIONS SPÉCIFIQUES ========
+  Future<void> notifyTaskAssigned({
+    required String taskId,
+    required String taskTitle,
+    required String assignerId,
+    required List<String> assigneeIds,
+  }) async {
+    final assigner = await getUserModel(assignerId);
+    
+    for (final assigneeId in assigneeIds) {
+      await sendNotification(
+        title: '📋 Nouvelle tâche assignée',
+        message: '${assigner?.displayName} vous a assigné la tâche "$taskTitle"',
+        type: NotificationType.taskAssigned,
+        senderId: assignerId,
+        receiverId: assigneeId,
+        data: {
+          'taskId': taskId,
+          'taskTitle': taskTitle,
+          'type': 'task_assigned'
+        },
+      );
+    }
+  }
+
+  Future<void> notifyTaskCompleted({
+    required String taskId,
+    required String taskTitle,
+    required String completerId,
+    required String projectOwnerId,
+  }) async {
+    final completer = await getUserModel(completerId);
+    
+    await sendNotification(
+      title: '✅ Tâche complétée',
+      message: '${completer?.displayName} a complété la tâche "$taskTitle"',
+      type: NotificationType.taskCompleted,
+      senderId: completerId,
+      receiverId: projectOwnerId,
+      data: {
+        'taskId': taskId,
+        'taskTitle': taskTitle,
+        'type': 'task_completed'
+      },
+    );
+  }
+
+  Future<void> notifyProjectCreated({
+    required String projectId,
+    required String projectName,
+    required String creatorId,
+    required List<String> memberIds,
+  }) async {
+    final creator = await getUserModel(creatorId);
+    
+    for (final memberId in memberIds) {
+      if (memberId != creatorId) { // Ne pas notifier le créateur
+        await sendNotification(
+          title: '🏗️ Nouveau projet',
+          message: '${creator?.displayName} vous a ajouté au projet "$projectName"',
+          type: NotificationType.projectCreated,
+          senderId: creatorId,
+          receiverId: memberId,
+          data: {
+            'projectId': projectId,
+            'projectName': projectName,
+            'type': 'project_created'
+          },
+        );
+      }
+    }
+  }
+
+  Future<void> notifyPrestataireTaskAssigned({
+    required String taskId,
+    required String taskTitle,
+    required String adminId,
+    required String prestataireId,
+  }) async {
+    final admin = await getUserModel(adminId);
+    
+    await sendNotification(
+      title: '📋 Tâche assignée par admin',
+      message: 'L\'administrateur ${admin?.displayName} vous a assigné la tâche "$taskTitle"',
+      type: NotificationType.taskAssigned,
+      senderId: adminId,
+      receiverId: prestataireId,
+      data: {
+        'taskId': taskId,
+        'taskTitle': taskTitle,
+        'type': 'task_assigned_by_admin'
+      },
+    );
+  }
+
+  Future<void> notifyAdminTaskCompletedByPrestataire({
+    required String taskId,
+    required String taskTitle,
+    required String prestataireId,
+    required String adminId,
+  }) async {
+    final prestataire = await getUserModel(prestataireId);
+    
+    await sendNotification(
+      title: '✅ Tâche complétée par prestataire',
+      message: 'Le prestataire ${prestataire?.displayName} a complété la tâche "$taskTitle"',
+      type: NotificationType.taskCompleted,
+      senderId: prestataireId,
+      receiverId: adminId,
+      data: {
+        'taskId': taskId,
+        'taskTitle': taskTitle,
+        'type': 'task_completed_by_prestataire'
+      },
+    );
   }
 
   /// ======== UTILITAIRES ========
@@ -375,6 +734,8 @@ for (var doc in query.docs) {
         return UserRole.prestataire;
       case 'member':
         return UserRole.member;
+      case 'client':
+        return UserRole.guest;
       default:
         return UserRole.guest;
     }
@@ -420,134 +781,110 @@ for (var doc in query.docs) {
     }
   }
 
+  /// Récupérer tous les prestataires
+  Future<List<UserModel>> getPrestataires() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'prestataire')
+          .get();
 
-/// ======== TASKS (CRUD) ========
-Future<void> updateTask(TaskModel task) async {
-  try {
-    await _firestore.collection('tasks').doc(task.id).update({
-      'title': task.title,
-      'description': task.description,
-      'status': task.status.name,
-      'priority': task.priority.name,
-      'dueDate': task.dueDate != null ? Timestamp.fromDate(task.dueDate!) : null,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'assignedTo': task.assignedTo,
-    });
-    debugPrint("✅ Tâche ${task.id} mise à jour");
-  } catch (e) {
-    debugPrint("❌ Erreur updateTask: $e");
-    rethrow;
-  }
-}
-
-Future<void> deleteTask(String taskId) async {
-  try {
-    await _firestore.collection('tasks').doc(taskId).delete();
-    debugPrint("✅ Tâche $taskId supprimée");
-  } catch (e) {
-    debugPrint("❌ Erreur deleteTask: $e");
-    rethrow;
-  }
-}
-
-Future<void> assignTask(String taskId, List<String> userIds) async {
-  try {
-    await _firestore.collection('tasks').doc(taskId).update({
-      'assignedTo': userIds,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    debugPrint("✅ Tâche $taskId assignée à $userIds");
-  } catch (e) {
-    debugPrint("❌ Erreur assignTask: $e");
-    rethrow;
-  }
-}
-
-// 🔹 Récupérer les membres assignés à une tâche
-Future<List<String>> getTaskMembers(String taskId) async {
-  try {
-    final doc = await _firestore.collection('tasks').doc(taskId).get();
-
-    if (doc.exists) {
-      final data = doc.data()!;
-      final members = List<String>.from(data['assignedTo'] ?? []);
-      return members;
-    } else {
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return UserModel(
+          id: data['id'] ?? doc.id,
+          email: data['email'] ?? '',
+          displayName: data['displayName'] ?? '',
+          photoURL: data['photoURL'],
+          role: UserRole.prestataire,
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          lastSeen: (data['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          isActive: data['isActive'] ?? true,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Erreur récupération prestataires: $e');
       return [];
     }
-  } catch (e) {
-    print('Erreur lors de la récupération des membres de la tâche: $e');
-    return [];
   }
-}
 
-// 🔹 Mettre à jour les membres assignés à une tâche
-Future<void> updateTaskMembers(String taskId, List<String> members) async {
+  /// Récupérer tous les administrateurs
+  Future<List<UserModel>> getAdmins() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return UserModel(
+          id: data['id'] ?? doc.id,
+          email: data['email'] ?? '',
+          displayName: data['displayName'] ?? '',
+          photoURL: data['photoURL'],
+          role: UserRole.admin,
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          lastSeen: (data['lastSeen'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          isActive: data['isActive'] ?? true,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Erreur récupération admins: $e');
+      return [];
+    }
+  }
+
+  // Dans FirebaseService
+Future<void> sendNotificationToPrestataire({
+  required String prestataireId,
+  required String title,
+  required String message,
+  required String adminId,
+  Map<String, dynamic>? data,
+}) async {
   try {
-    await _firestore.collection('tasks').doc(taskId).update({'assignedTo': members});
-    print("Membres de la tâche mis à jour avec succès");
+    await sendNotification(
+      title: title,
+      message: message,
+      type: NotificationType.system,
+      senderId: adminId,
+      receiverId: prestataireId,
+      data: data,
+    );
+    
+    debugPrint('✅ Notification envoyée au prestataire $prestataireId');
   } catch (e) {
-    print("Erreur lors de la mise à jour des membres: $e");
-    throw Exception("Erreur lors de la mise à jour des membres: $e");
+    debugPrint('❌ Erreur envoi notification prestataire: $e');
+    rethrow;
   }
 }
 
-/// Statistiques des tâches créées par l'utilisateur
-Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
+Future<void> sendNotificationToAdmin({
+  required String prestataireId,
+  required String title,
+  required String message,
+  Map<String, dynamic>? data,
+}) async {
   try {
-    // 🔹 Récupérer toutes les tâches créées par l'utilisateur
-    final query = await _firestore
-        .collection('tasks')
-        .where('createdBy', isEqualTo: userId)
-        .get();
-
-    int totalTasks = query.docs.length;
-    int activeTasks = 0;
-    int completedTasks = 0;
-    int overdueTasks = 0;
-
-    for (var doc in query.docs) {
-  final data = doc.data();
-
-  bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
-  Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
-  DateTime? dueDate = dueDateTS?.toDate();
-
-  if (isCompleted) {
-    completedTasks++;
-  } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
-    overdueTasks++;
-  } else {
-    activeTasks++;
-  }
-}
-
-
-    double completionPercentage = totalTasks > 0
-        ? (completedTasks / totalTasks) * 100
-        : 0;
-
-    return {
-      'totalTasks': totalTasks,
-      'activeTasks': activeTasks,
-      'completedTasks': completedTasks,
-      'overdueTasks': overdueTasks,
-      'completionPercentage': completionPercentage,
-    };
+    // Récupérer tous les admins
+    final admins = await getAdmins();
+    
+    for (final admin in admins) {
+      await sendNotification(
+        title: title,
+        message: message,
+        type: NotificationType.message,
+        senderId: prestataireId,
+        receiverId: admin.id,
+        data: data,
+      );
+    }
+    
+    debugPrint('✅ Notification envoyée à tous les admins');
   } catch (e) {
-    debugPrint('Erreur getCreatedTaskStats: $e');
-    return {
-      'totalTasks': 0,
-      'activeTasks': 0,
-      'completedTasks': 0,
-      'overdueTasks': 0,
-      'completionPercentage': 0,
-    };
+    debugPrint('❌ Erreur envoi notification admin: $e');
+    rethrow;
   }
 }
-
-
-
-
-
 }

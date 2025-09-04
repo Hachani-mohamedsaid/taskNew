@@ -17,7 +17,7 @@ class QuickActions extends StatefulWidget {
     required this.currentUser,
     required this.projectService,
     required this.onProjectCreated,
-    required this.firebaseService,
+    required this.firebaseService, required void Function() onTaskCreated,
   });
 
   @override

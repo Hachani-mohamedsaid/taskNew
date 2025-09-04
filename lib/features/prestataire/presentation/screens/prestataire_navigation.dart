@@ -1,19 +1,25 @@
-import 'package:collaborative_task_manager/core/models/user_model.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 
-import 'dashboard_tab.dart';
-import 'tasks_tab.dart';
-import 'calendar_tab.dart';
-import 'reports_tab.dart';
-import 'profile_tab.dart';
+import 'package:collaborative_task_manager/features/dashboard/presentation/screens/notifications_screen.dart';
+import 'package:collaborative_task_manager/features/prestataire/presentation/screens/calendar_tab.dart';
+import 'package:collaborative_task_manager/features/prestataire/presentation/screens/dashboard_tab.dart';
+import 'package:collaborative_task_manager/features/prestataire/presentation/screens/profile_tab.dart';
+import 'package:collaborative_task_manager/features/prestataire/presentation/screens/reports_tab.dart';
+import 'package:collaborative_task_manager/features/prestataire/presentation/screens/tasks_tab.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import '../../../../core/models/user_model.dart';
+import '../../../../core/services/firebase_service.dart';
+import 'prestataire_notification_screen.dart'; // IMPORT AJOUTÉ
 
 class PrestataireNavigation extends StatefulWidget {
   final UserModel currentUser;
+  final FirebaseService firebaseService;
 
   const PrestataireNavigation({
     super.key,
     required this.currentUser,
+    required this.firebaseService,
   });
 
   @override
@@ -22,19 +28,65 @@ class PrestataireNavigation extends StatefulWidget {
 
 class _PrestataireNavigationState extends State<PrestataireNavigation> {
   int _selectedIndex = 0;
+  int _unreadNotifications = 0;
+  late StreamSubscription<int> _notificationSubscription;
 
   final List<Widget> _widgetOptions = [];
 
   @override
   void initState() {
     super.initState();
+    _setupNotifications();
     _widgetOptions.addAll([
-      DashboardTab(currentUser: widget.currentUser),
-      const TasksTab(),
+      DashboardTab(currentUser: widget.currentUser, firebaseService: widget.firebaseService),
+      TasksTab(currentUser: widget.currentUser, firebaseService: widget.firebaseService),
       const CalendarTab(),
       const ReportsTab(),
-      ProfileTab(currentUser: widget.currentUser),
+      ProfileTab(currentUser: widget.currentUser, firebaseService: widget.firebaseService),
     ]);
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription.cancel();
+    super.dispose();
+  }
+
+  void _setupNotifications() {
+    _notificationSubscription = widget.firebaseService
+        .getUnreadCountStream(widget.currentUser.id)
+        .listen((count) {
+      if (mounted) {
+        setState(() {
+          _unreadNotifications = count;
+        });
+      }
+    });
+  }
+
+  void _navigateToNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationsScreen(
+          currentUser: widget.currentUser,
+          firebaseService: widget.firebaseService,
+        ),
+      ),
+    );
+  }
+
+  // NOUVELLE MÉTHODE POUR CONTACTER LES ADMINS
+  void _navigateToContactAdmin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PrestataireNotificationScreen(
+          currentUser: widget.currentUser,
+          firebaseService: widget.firebaseService,
+        ),
+      ),
+    );
   }
 
   void _onItemTapped(int index) {
@@ -69,16 +121,47 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
         foregroundColor: Colors.white,
         elevation: 2,
         actions: [
+          // BOUTON POUR CONTACTER LES ADMINS - AJOUTÉ ICI ↓
           IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              // TODO: Ouvrir les notifications
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Fonctionnalité notifications à implémenter'),
+            icon: const Icon(Icons.contact_support),
+            onPressed: _navigateToContactAdmin,
+            tooltip: 'Contacter les administrateurs',
+          ),
+
+          // Badge de notifications pour prestataire
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: _navigateToNotifications,
+                tooltip: 'Notifications',
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _unreadNotifications > 99 ? '99+' : _unreadNotifications.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -87,12 +170,15 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
                   _selectedIndex = 4; // Naviguer vers l'onglet Profil
                 });
               } else if (value == 'settings') {
-                // TODO: Ouvrir les paramètres
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Fonctionnalité paramètres à implémenter'),
+                    content: Text('Paramètres à implémenter'),
                   ),
                 );
+              } else if (value == 'notifications') {
+                _navigateToNotifications();
+              } else if (value == 'contact_admin') {
+                _navigateToContactAdmin(); // OPTION DANS LE MENU
               } else if (value == 'logout') {
                 _logout(context);
               }
@@ -105,6 +191,27 @@ class _PrestataireNavigationState extends State<PrestataireNavigation> {
                     Icon(Icons.person),
                     SizedBox(width: 8),
                     Text('Profil'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'notifications',
+                child: Row(
+                  children: [
+                    Icon(Icons.notifications),
+                    SizedBox(width: 8),
+                    Text('Notifications'),
+                  ],
+                ),
+              ),
+              // OPTION POUR CONTACTER LES ADMINS DANS LE MENU
+              const PopupMenuItem(
+                value: 'contact_admin',
+                child: Row(
+                  children: [
+                    Icon(Icons.contact_support),
+                    SizedBox(width: 8),
+                    Text('Contacter admin'),
                   ],
                 ),
               ),

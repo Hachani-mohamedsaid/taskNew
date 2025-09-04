@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:collaborative_task_manager/core/services/firebase_service.dart';
 import 'package:collaborative_task_manager/features/auth/presentation/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,7 +15,7 @@ class ProfileTab extends StatefulWidget {
 
   const ProfileTab({
     super.key,
-    required this.currentUser,
+    required this.currentUser, required FirebaseService firebaseService,
   });
 
   @override
