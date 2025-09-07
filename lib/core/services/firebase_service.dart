@@ -193,58 +193,84 @@ class FirebaseService {
     }
   }
 
-  Future<Map<String, dynamic>> getProjectStats(String userId) async {
-    try {
-      final projects = await _firestore
-          .collection('projects')
-          .where('members', arrayContains: userId)
-          .get();
+Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
+  try {
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('tasks')
+        .where('createdBy', isEqualTo: userId)
+        .get();
 
-      int totalProjects = projects.docs.length;
-      int activeTasks = 0;
-      int completedTasks = 0;
-      int overdueTasks = 0;
+    final tasks = querySnapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList();
 
-      for (var project in projects.docs) {
-        final tasks = await _firestore
-            .collection('projects')
-            .doc(project.id)
-            .collection('tasks')
-            .get();
+    int todoTasks = 0;
+    int inProgressTasks = 0;
+    int completedTasks = 0;
+    int overdueTasks = 0;
 
-        for (var task in tasks.docs) {
-          final data = task.data();
-          if (data['isCompleted'] == true) {
-            completedTasks++;
-          } else if (data['dueDate'] != null &&
-              (data['dueDate'] as Timestamp).toDate().isBefore(DateTime.now())) {
-            overdueTasks++;
-          } else {
-            activeTasks++;
-          }
-        }
-      }
-
-      return {
-        'totalProjects': totalProjects,
-        'activeTasks': activeTasks,
-        'completedTasks': completedTasks,
-        'overdueTasks': overdueTasks,
-        'completionPercentage': totalProjects > 0
-            ? (completedTasks / (completedTasks + activeTasks + overdueTasks)) * 100
-            : 0,
-      };
-    } catch (e) {
-      debugPrint('Error fetching project stats: ${e.toString()}');
-      return {
-        'totalProjects': 0,
-        'activeTasks': 0,
-        'completedTasks': 0,
-        'overdueTasks': 0,
-        'completionPercentage': 0,
-      };
-    }
+    for (var t in tasks) {
+  if (t.status == TaskStatus.completed) {
+    completedTasks++;
+  } else if (t.dueDate != null && t.dueDate!.isBefore(DateTime.now())) {
+    // Tout ce qui n'est pas terminé et dont la date est dépassée → en retard
+    overdueTasks++;
+  } else if (t.status == TaskStatus.inProgress) {
+    inProgressTasks++;
+  } else if (t.status == TaskStatus.todo) {
+    todoTasks++; // si tu veux garder une catégorie "À faire"
   }
+}
+
+
+    return {
+      'totalTasks': tasks.length,
+      'todoTasks': todoTasks,
+      'inProgressTasks': inProgressTasks,
+      'completedTasks': completedTasks,
+      'overdueTasks': overdueTasks,
+    };
+  } catch (e) {
+    print('Erreur lors de la récupération des stats des tâches: $e');
+    return {
+      'totalTasks': 0,
+      'todoTasks': 0,
+      'inProgressTasks': 0,
+      'completedTasks': 0,
+      'overdueTasks': 0,
+    };
+  }
+}
+
+Future<void> updateOverdueTasks(String userId) async {
+  try {
+    final now = DateTime.now();
+
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('tasks')
+        .where('createdBy', isEqualTo: userId)
+        .get();
+
+    for (var doc in querySnapshot.docs) {
+      final task = TaskModel.fromFirestore(doc);
+
+      // Si la tâche n'est pas terminée et que la date est dépassée
+      if ((task.status == TaskStatus.todo || task.status == TaskStatus.inProgress) &&
+          task.dueDate != null &&
+          task.dueDate!.isBefore(now)) {
+        // On met à jour le status dans Firestore
+        await FirebaseFirestore.instance
+            .collection('tasks')
+            .doc(task.id)
+            .update({'status': TaskStatus.overdue.name});
+      }
+    }
+
+    print('Tâches en retard mises à jour avec succès.');
+  } catch (e) {
+    print('Erreur lors de la mise à jour des tâches en retard: $e');
+  }
+}
+
+
 
   /// ======== TASKS ========
   Future<void> createTaskModel(TaskModel task) async {
@@ -442,57 +468,7 @@ class FirebaseService {
     }
   }
 
-  /// Statistiques des tâches créées par l'utilisateur
-  Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
-    try {
-      final query = await _firestore
-          .collection('tasks')
-          .where('createdBy', isEqualTo: userId)
-          .get();
-
-      int totalTasks = query.docs.length;
-      int activeTasks = 0;
-      int completedTasks = 0;
-      int overdueTasks = 0;
-
-      for (var doc in query.docs) {
-        final data = doc.data();
-
-        bool isCompleted = data['status']?.toString().toLowerCase() == 'completed';
-        Timestamp? dueDateTS = data['dueDate'] as Timestamp?;
-        DateTime? dueDate = dueDateTS?.toDate();
-
-        if (isCompleted) {
-          completedTasks++;
-        } else if (dueDate != null && dueDate.isBefore(DateTime.now())) {
-          overdueTasks++;
-        } else {
-          activeTasks++;
-        }
-      }
-
-      double completionPercentage = totalTasks > 0
-          ? (completedTasks / totalTasks) * 100
-          : 0;
-
-      return {
-        'totalTasks': totalTasks,
-        'activeTasks': activeTasks,
-        'completedTasks': completedTasks,
-        'overdueTasks': overdueTasks,
-        'completionPercentage': completionPercentage,
-      };
-    } catch (e) {
-      debugPrint('Erreur getCreatedTaskStats: $e');
-      return {
-        'totalTasks': 0,
-        'activeTasks': 0,
-        'completedTasks': 0,
-        'overdueTasks': 0,
-        'completionPercentage': 0,
-      };
-    }
-  }
+ 
 
   /// ======== NOTIFICATIONS ========
   Future<void> sendNotification({
@@ -776,8 +752,8 @@ class FirebaseService {
         return 'En cours';
       case TaskStatus.completed:
         return 'Terminé';
-      case TaskStatus.archived:
-        return 'Archivé';
+      case TaskStatus.overdue:
+        return 'En retard';
     }
   }
 

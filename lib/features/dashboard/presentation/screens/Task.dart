@@ -363,213 +363,197 @@ class _TaskState extends State<Task> {
 
 
   void _showUpdateTaskDialog(TaskModel task) {
-    final titleController = TextEditingController(text: task.title);
-    final descriptionController =
-        TextEditingController(text: task.description);
+  final titleController = TextEditingController(text: task.title);
+  final descriptionController = TextEditingController(text: task.description);
   TaskPriority selectedPriority = task.priority;
   TaskStatus selectedStatus = task.status;
   DateTime? selectedDueDate = task.dueDate;
+  String selectedProjectId = task.projectId;
 
-    String selectedProjectId = task.projectId;
-    // removed single assignedMember here; we'll manage a list inside dialog
+  // Liste des membres assignés initialisée à partir de la tâche
+  List<String> assignedMembers = List.from(task.assignedTo);
 
   showDialog(
     context: context,
     builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            // Use the local state usersList (not widget.usersList)
-            List<UserModel> filteredUsers = [];
-            if (selectedProjectId.isNotEmpty) {
-              final project = widget.projectService
-                  .getCachedProjectById(selectedProjectId);
-              if (project != null) {
-                filteredUsers = usersList
-                    .where((u) => project.assignedUsers.contains(u.id))
-                    .toList();
-              }
-            }
+      return StatefulBuilder(
+        builder: (context, setStateDialog) {
+          // Filtrer les utilisateurs selon le projet sélectionné
+          List<UserModel> filteredUsers = [];
+          final project = widget.projectService.getCachedProjectById(selectedProjectId);
+          if (project != null) {
+            filteredUsers = usersList
+                .where((u) => project.assignedUsers.contains(u.id))
+                .toList();
+          }
 
-            // Assigned members list initialized from the task
-            List<String> assignedMembers = List.from(task.assignedTo);
-
-      return AlertDialog(
-              title: const Text('Modifier la tâche'),
-              content: SingleChildScrollView(
+          return AlertDialog(
+            title: const Text('Modifier la tâche'),
+            content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Titre
                   TextField(
                     controller: titleController,
-                      decoration:
-                          const InputDecoration(labelText: 'Titre'),
+                    decoration: const InputDecoration(labelText: 'Titre'),
                   ),
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+
+                  // Description
                   TextField(
                     controller: descriptionController,
-                      decoration: const InputDecoration(
-                          labelText: 'Description'),
-                      maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                    maxLines: 2,
                   ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<TaskStatus>(
+                  const SizedBox(height: 10),
+
+                  // Statut
+                  DropdownButtonFormField<TaskStatus>(
                     value: selectedStatus,
-                      decoration:
-                          const InputDecoration(labelText: "Statut"),
+                    decoration: const InputDecoration(labelText: "Statut"),
                     items: TaskStatus.values.map((status) {
                       return DropdownMenuItem(
                         value: status,
-                          child: Text(
-                              status.toString().split('.').last),
+                        child: Text(status.toString().split('.').last),
                       );
                     }).toList(),
                     onChanged: (value) {
-                        if (value != null) {
-                          setStateDialog(() => selectedStatus = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<TaskPriority>(
-                      value: selectedPriority,
-                      decoration:
-                          const InputDecoration(labelText: "Priorité"),
-                      items: TaskPriority.values.map((prio) {
+                      if (value != null) {
+                        setStateDialog(() => selectedStatus = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Priorité
+                  DropdownButtonFormField<TaskPriority>(
+                    value: selectedPriority,
+                    decoration: const InputDecoration(labelText: "Priorité"),
+                    items: TaskPriority.values.map((prio) {
                       return DropdownMenuItem(
-                          value: prio,
-                          child: Text(
-                              prio.toString().split('.').last),
+                        value: prio,
+                        child: Text(prio.toString().split('.').last),
                       );
                     }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setStateDialog(() => selectedPriority = value);
-                        }
-          },
-        ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            selectedDueDate != null
-                                ? "Échéance : ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}"
-                                : "Pas de date d'échéance",
-                          ),
-          ),
-                        IconButton(
-                          icon: const Icon(Icons.calendar_today),
-                          onPressed: () async {
-                            final pickedDate = await showDatePicker(
-                              context: context,
-                              initialDate:
-                                  selectedDueDate ?? DateTime.now(),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2100),
-                            );
-                            if (pickedDate != null) {
-                              setStateDialog(
-                                  () => selectedDueDate = pickedDate);
-                            }
-            },
-          ),
-        ],
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: const Text(
-                        "Assigner à",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (filteredUsers.isNotEmpty)
-                      // use checkboxes to support multiple members
-                      ...filteredUsers.map(
-                        (user) => StatefulBuilder(
-                          builder: (context2, innerSetState) {
-                            final isChecked = assignedMembers.contains(user.id);
-                  return CheckboxListTile(
-                              value: isChecked,
-                    title: Text(user.displayName),
-                              onChanged: (val) {
-                                innerSetState(() {
-                                  if (val == true) {
-                                    if (!assignedMembers.contains(user.id)) {
-                                      assignedMembers.add(user.id);
-                                    }
-                                  } else {
-                                    assignedMembers.remove(user.id);
-                                  }
-                                });
-                                // also reflect changes to outer dialog state so UI updates
-                                setStateDialog(() {});
-                  },
-                            );
-                          },
+                    onChanged: (value) {
+                      if (value != null) {
+                        setStateDialog(() => selectedPriority = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Date d'échéance
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          selectedDueDate != null
+                              ? "Échéance : ${selectedDueDate?.day}/${selectedDueDate?.month}/${selectedDueDate?.year}"
+                              : "Pas de date d'échéance",
                         ),
-                      )
-                    else
-                      const Text("⚠️ Aucun membre assigné à ce projet."),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-                  child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                    if (assignedMembers.isEmpty) {
-                      // you can decide whether to allow empty assignment or not
-                  ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Sélectionnez au moins un membre')),
-                  );
-                  return;
-                }
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_today),
+                        onPressed: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDueDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (pickedDate != null) {
+                            setStateDialog(() => selectedDueDate = pickedDate);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
 
-                    final updatedTask = TaskModel(
-                      id: task.id,
-                      title: titleController.text,
-                      description: descriptionController.text,
-                      projectId: selectedProjectId,
-                      assignedTo: assignedMembers,
-                      status: selectedStatus,
-                      priority: selectedPriority,
-                      dueDate: selectedDueDate,
-                      createdAt: task.createdAt,
-                      updatedAt: DateTime.now(),
-                      createdBy: task.createdBy,
-                      attachments: task.attachments,
-                      subTasks: task.subTasks,
-                    
+                  // Assigner à (checkboxes)
+               // Assigner à (un seul membre)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    "Assigner à",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (filteredUsers.isNotEmpty)
+                  ...filteredUsers.map((user) {
+                    return RadioListTile<String>(
+                      value: user.id,
+                      groupValue: assignedMembers.isNotEmpty ? assignedMembers[0] : null,
+                      title: Text(user.displayName),
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          assignedMembers.clear();
+                          if (val != null) assignedMembers.add(val);
+                        });
+                      },
                     );
+                  }).toList()
+                else
+                  const Text("⚠️ Aucun membre assigné à ce projet."),
 
-                 await widget.firebaseService.updateTask(updatedTask);
-await widget.firebaseService.updateTaskMembers(task.id, assignedMembers);
-
-                    setState(() {
-                      final index =
-                          tasks.indexWhere((t) => t.id == task.id);
-                      if (index != -1) tasks[index] = updatedTask;
-                    });
-
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('✅ Tâche mise à jour !')),
-                  );
-              },
-                  child: const Text('Enregistrer'),
+                ],
+              ),
             ),
-          ],
-        );
-          },
-        );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (assignedMembers.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Sélectionnez au moins un membre')),
+                    );
+                    return;
+                  }
+
+                  final updatedTask = TaskModel(
+                    id: task.id,
+                    title: titleController.text,
+                    description: descriptionController.text,
+                    projectId: selectedProjectId,
+                    assignedTo: assignedMembers,
+                    status: selectedStatus,
+                    priority: selectedPriority,
+                    dueDate: selectedDueDate,
+                    createdAt: task.createdAt,
+                    updatedAt: DateTime.now(),
+                    createdBy: task.createdBy,
+                    attachments: task.attachments,
+                    subTasks: task.subTasks,
+                  );
+
+                  await widget.firebaseService.updateTask(updatedTask);
+                  await widget.firebaseService.updateTaskMembers(task.id, assignedMembers);
+
+                  setState(() {
+                    final index = tasks.indexWhere((t) => t.id == task.id);
+                    if (index != -1) tasks[index] = updatedTask;
+                  });
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('✅ Tâche mise à jour !')),
+                  );
+                },
+                child: const Text('Enregistrer'),
+              ),
+            ],
+          );
+        },
+      );
     },
   );
 }
+
 
   // 🔹 SUPPRIMER TÂCHE
   void _showDeleteTaskDialog(TaskModel task) {
@@ -619,7 +603,7 @@ await widget.firebaseService.updateTaskMembers(task.id, assignedMembers);
           (selectedStatus == 'À faire' && t.status == TaskStatus.todo) ||
           (selectedStatus == 'En cours' && t.status == TaskStatus.inProgress) ||
           (selectedStatus == 'Terminé' && t.status == TaskStatus.completed) ||
-          (selectedStatus == 'Archivé' && t.status == TaskStatus.archived);
+          (selectedStatus == 'Archivé' && t.status == TaskStatus.overdue);
       bool prioOk = selectedPriority == null ||
           (selectedPriority == 'Faible' && t.priority == TaskPriority.low) ||
           (selectedPriority == 'Moyenne' && t.priority == TaskPriority.medium) ||

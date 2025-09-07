@@ -106,7 +106,7 @@ class TaskCard extends StatelessWidget {
         return Colors.blue;
       case TaskStatus.completed:
         return Colors.green;
-      case TaskStatus.archived:
+      case TaskStatus.overdue:
         return Colors.orange;
     }
   }
@@ -119,8 +119,8 @@ class TaskCard extends StatelessWidget {
         return Icons.play_arrow;
       case TaskStatus.completed:
         return Icons.check;
-      case TaskStatus.archived:
-        return Icons.archive;
+      case TaskStatus.overdue:
+        return Icons.lock_clock;
     }
   }
 

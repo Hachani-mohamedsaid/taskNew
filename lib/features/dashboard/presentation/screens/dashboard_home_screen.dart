@@ -64,18 +64,22 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     });
   }
 
-  void _loadData() {
-    setState(() {
-      _projectStatsFuture = widget.projectService.getProjectStats();
-      _projectsFuture = widget.projectService.getProjectsByUser(widget.currentUser.id);
-      _recentTasksFuture = widget.firebaseService.getTasksCreatedByUser(widget.currentUser.id);
-      _taskStatsFuture = widget.firebaseService.getCreatedTaskStats(widget.currentUser.id);
+ void _loadData() async {
+  // 1️⃣ Mettre à jour les tâches en retard
+  await widget.firebaseService.updateOverdueTasks(widget.currentUser.id);
 
-      _recentTasksFuture.then((tasks) {
-        debugPrint('Tâches créées par ${widget.currentUser.id}: ${tasks.map((t) => t.title).toList()}');
-      });
+  // 2️⃣ Charger les futures après la mise à jour
+  setState(() {
+    _projectStatsFuture = widget.projectService.getProjectStats();
+    _projectsFuture = widget.projectService.getProjectsByUser(widget.currentUser.id);
+    _recentTasksFuture = widget.firebaseService.getTasksCreatedByUser(widget.currentUser.id);
+    _taskStatsFuture = widget.firebaseService.getCreatedTaskStats(widget.currentUser.id);
+
+    _recentTasksFuture.then((tasks) {
+      debugPrint('Tâches créées par ${widget.currentUser.id}: ${tasks.map((t) => t.title).toList()}');
     });
-  }
+  });
+}
 
   void _navigateToNotifications() {
     Navigator.push(
@@ -215,8 +219,8 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
         return 'En cours';
       case TaskStatus.completed:
         return 'Terminé';
-      case TaskStatus.archived:
-        return 'Archivé';
+      case TaskStatus.overdue:
+        return 'En retard';
     }
   }
 

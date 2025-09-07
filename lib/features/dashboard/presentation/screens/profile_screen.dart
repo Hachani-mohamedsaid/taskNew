@@ -5,16 +5,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:collaborative_task_manager/core/models/user_model.dart';
+import 'package:collaborative_task_manager/core/models/task_model.dart';
 import 'package:collaborative_task_manager/features/auth/presentation/screens/login_screen.dart';
+
+import '../../../../core/services/project_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final UserModel currentUser;
-  final Map<String, dynamic>? projectStats; // 👈 ajout des stats comme DashboardStats
-
+  final Map<String, dynamic>? projectStats; // 👈 stats des projets
+  final ProjectService projectService;
   const ProfileScreen({
     super.key,
     required this.currentUser,
     this.projectStats,
+    required this.projectService,
   });
 
   @override
@@ -23,31 +27,92 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late UserModel _currentUser;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+Map<String, dynamic>? _projectStats;
+bool _isLoadingStats = false;  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
   final String _imgbbApiKey = '05b2177b559da91f49c845e58ba5d7e9';
 
+  late Future<Map<String, dynamic>> _taskStatsFuture;
+
   @override
   void initState() {
     super.initState();
     _currentUser = widget.currentUser;
+    _loadTaskStats();
+    _loadProjectStats(); // 🔹 charger les stats
+  }
+
+  void _loadTaskStats() {
+    _taskStatsFuture = getCreatedTaskStats(_currentUser.id);
+  }
+
+  Future<void> _loadProjectStats() async {
+  setState(() => _isLoadingStats = true);
+  try {
+    final stats = await widget.projectService.getProjectStats();
+    if (mounted) {
+      setState(() {
+        _projectStats = stats;
+      });
+    }
+  } catch (e) {
+    print('Erreur chargement stats: $e');
+  } finally {
+    if (mounted) setState(() => _isLoadingStats = false);
+  }
+}
+
+  Future<Map<String, dynamic>> getCreatedTaskStats(String userId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('tasks')
+          .where('createdBy', isEqualTo: userId)
+          .get();
+
+      final tasks =
+          querySnapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList();
+
+      int todoTasks = 0;
+      int inProgressTasks = 0;
+      int completedTasks = 0;
+      int overdueTasks = 0;
+
+      for (var t in tasks) {
+        if (t.status == TaskStatus.completed) {
+          completedTasks++;
+        } else if (t.dueDate != null && t.dueDate!.isBefore(DateTime.now())) {
+          overdueTasks++;
+        } else if (t.status == TaskStatus.inProgress) {
+          inProgressTasks++;
+        } else if (t.status == TaskStatus.todo) {
+          todoTasks++;
+        }
+      }
+
+      return {
+        'totalTasks': tasks.length,
+        'todoTasks': todoTasks,
+        'inProgressTasks': inProgressTasks,
+        'completedTasks': completedTasks,
+        'overdueTasks': overdueTasks,
+      };
+    } catch (e) {
+      print('Erreur getCreatedTaskStats: $e');
+      return {
+        'totalTasks': 0,
+        'todoTasks': 0,
+        'inProgressTasks': 0,
+        'completedTasks': 0,
+        'overdueTasks': 0,
+      };
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isAdmin = _currentUser.role == UserRole.admin;
-
-    // 👇 même logique que DashboardStats
-    final int totalProjects =
-        widget.projectStats?['totalProjects'] ?? (isAdmin ? 5 : 2);
-    final int activeTasks =
-        widget.projectStats?['activeTasks'] ?? (isAdmin ? 20 : 7);
-    final int completedTasks =
-        widget.projectStats?['completedTasks'] ?? (isAdmin ? 8 : 2);
-    final int overdueTasks =
-        widget.projectStats?['overdueTasks'] ?? (isAdmin ? 3 : 1);
 
     return Scaffold(
       appBar: AppBar(
@@ -81,9 +146,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onTap: _changeProfileImage,
                                 child: CircleAvatar(
                                   radius: 44,
-                                  backgroundColor: isAdmin
-                                      ? Colors.blue[100]!
-                                      : Colors.green[100]!,
+                                  backgroundColor:
+                                      isAdmin ? Colors.blue[100]! : Colors.green[100]!,
                                   child: _currentUser.photoURL != null
                                       ? ClipOval(
                                           child: Image.network(
@@ -98,8 +162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             },
                                           ),
                                         )
-                                      : _buildFallbackAvatar(
-                                          _currentUser, isAdmin),
+                                      : _buildFallbackAvatar(_currentUser, isAdmin),
                                 ),
                               ),
                               const SizedBox(width: 24),
@@ -139,17 +202,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                     ? Icons.admin_panel_settings
                                                     : Icons.verified_user,
                                                 size: 16,
-                                                color: isAdmin
-                                                    ? Colors.blue
-                                                    : Colors.green,
+                                                color: isAdmin ? Colors.blue : Colors.green,
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 isAdmin ? 'ADMIN' : 'MEMBRE',
                                                 style: TextStyle(
-                                                  color: isAdmin
-                                                      ? Colors.blue
-                                                      : Colors.green,
+                                                  color: isAdmin ? Colors.blue : Colors.green,
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 12,
                                                 ),
@@ -184,28 +243,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.circle,
-                                        size: 8, color: Colors.grey),
+                                    const Icon(Icons.circle, size: 8, color: Colors.grey),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Inscrit le ${_formatDate(_currentUser.createdAt)}',
                                       style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 14),
+                                          color: Colors.grey[600], fontSize: 14),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.circle,
-                                        size: 8, color: Colors.green),
+                                    const Icon(Icons.circle, size: 8, color: Colors.green),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Dernière connexion : ${_formatDate(_currentUser.lastSeen)}',
                                       style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 14),
+                                          color: Colors.grey[600], fontSize: 14),
                                     ),
                                   ],
                                 ),
@@ -218,16 +273,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ✅ Statistiques avec la logique DashboardStats
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _StatInfo(label: 'Projets', value: totalProjects.toString()),
-                      _StatInfo(label: 'Tâches en cours', value: activeTasks.toString()),
-                      _StatInfo(label: 'Terminées', value: completedTasks.toString()),
-                      _StatInfo(label: 'En retard', value: overdueTasks.toString()),
-                    ],
-                  ),
+                  // ✅ Statistiques dynamiques
+                 // ✅ Statistiques dynamiques combinées
+_isLoadingStats
+    ? const Center(child: CircularProgressIndicator())
+    : FutureBuilder<Map<String, dynamic>>(
+        future: _taskStatsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Text('Erreur: ${snapshot.error}');
+          }
+
+          final taskStats = snapshot.data!;
+          final totalProjects = _projectStats?['totalProjects'] ?? 0;
+          final activeProjects = _projectStats?['activeProjects'] ?? 0;
+          final completedProjects = _projectStats?['completedProjects'] ?? 0;
+
+          return Column(
+            children: [
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _StatInfo(label: 'Projets', value: totalProjects.toString()),
+                  _StatInfo(label: 'Tâches en cours', value: taskStats['inProgressTasks'].toString()),
+                  _StatInfo(label: 'Terminées', value: taskStats['completedTasks'].toString()),
+                  _StatInfo(label: 'En retard', value: taskStats['overdueTasks'].toString()),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
 
                   const SizedBox(height: 24),
                   // Options
@@ -239,16 +319,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading:
-                              const Icon(Icons.edit, color: Colors.deepPurple),
+                          leading: const Icon(Icons.edit, color: Colors.deepPurple),
                           title: const Text('Modifier le profil'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => _showEditProfileDialog(context),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(Icons.lock_reset,
-                              color: Colors.orange),
+                          leading: const Icon(Icons.lock_reset, color: Colors.orange),
                           title: const Text('Changer le mot de passe'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => _showChangePasswordDialog(context),
@@ -256,8 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Divider(height: 1),
                         ListTile(
                           leading: const Icon(Icons.logout, color: Colors.red),
-                          title: const Text('Déconnexion',
-                              style: TextStyle(color: Colors.red)),
+                          title: const Text('Déconnexion', style: TextStyle(color: Colors.red)),
                           onTap: _signOut,
                         ),
                       ],
@@ -287,8 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _refreshProfile() async {
     setState(() => _isLoading = true);
     try {
-      final doc =
-          await _firestore.collection('users').doc(_currentUser.id).get();
+      final doc = await _firestore.collection('users').doc(_currentUser.id).get();
       if (doc.exists && mounted) {
         setState(() {
           _currentUser = UserModel(
@@ -305,6 +381,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             isActive: doc['isActive'],
           );
         });
+        _loadTaskStats(); // 🔹 recharger les stats après refresh
       }
     } catch (e) {
       if (mounted) {
@@ -371,11 +448,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Dialogs & Password change (inchangés, mêmes que ton code précédent)...
-
   void _showEditProfileDialog(BuildContext context) {
-    final nameController =
-        TextEditingController(text: _currentUser.displayName);
+    final nameController = TextEditingController(text: _currentUser.displayName);
     final emailController = TextEditingController(text: _currentUser.email);
 
     showDialog(
@@ -415,8 +489,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () async {
               if (nameController.text.isEmpty || emailController.text.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Veuillez remplir tous les champs')),
+                  const SnackBar(content: Text('Veuillez remplir tous les champs')),
                 );
                 return;
               }
@@ -430,10 +503,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ?.verifyBeforeUpdateEmail(emailController.text);
                 }
 
-                await _firestore
-                    .collection('users')
-                    .doc(_currentUser.id)
-                    .update({
+                await _firestore.collection('users').doc(_currentUser.id).update({
                   'displayName': nameController.text,
                   'email': emailController.text,
                   'updatedAt': FieldValue.serverTimestamp(),
@@ -447,8 +517,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     );
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Profil mis à jour avec succès')),
+                    const SnackBar(content: Text('Profil mis à jour avec succès')),
                   );
                 }
               } catch (e) {
@@ -477,8 +546,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Changer le mot de passe'),
         content: SingleChildScrollView(
           child: Column(
@@ -509,14 +577,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   border: OutlineInputBorder(),
                 ),
                 obscureText: true,
-                onSubmitted: (_) async {
-                  await _processPasswordChange(
-                    context,
-                    oldPasswordController.text,
-                    newPasswordController.text,
-                    confirmPasswordController.text,
-                  );
-                },
               ),
             ],
           ),
@@ -548,7 +608,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String newPassword,
     String confirmPassword,
   ) async {
-    // ... ton code identique à avant
+    if (newPassword != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le nouveau mot de passe ne correspond pas')),
+      );
+      return;
+    }
+
+    try {
+      final user = _auth.currentUser!;
+      final cred = EmailAuthProvider.credential(
+        email: user.email!,
+        password: oldPassword,
+      );
+
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(newPassword);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mot de passe mis à jour avec succès')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
+    }
   }
 
   Future<void> _signOut() async {
@@ -595,3 +680,4 @@ class _StatInfo extends StatelessWidget {
     );
   }
 }
+

@@ -89,7 +89,7 @@ class _RecentTaskItem extends StatelessWidget {
         return Colors.blue;
       case TaskStatus.completed:
         return Colors.green;
-      case TaskStatus.archived:
+      case TaskStatus.overdue:
         return Colors.orange;
     }
   }
@@ -102,8 +102,8 @@ class _RecentTaskItem extends StatelessWidget {
         return 'En cours';
       case TaskStatus.completed:
         return 'Terminé';
-      case TaskStatus.archived:
-        return 'Archivé';
+      case TaskStatus.overdue:
+        return 'retard';
     }
   }
 
@@ -115,8 +115,8 @@ class _RecentTaskItem extends StatelessWidget {
         return Icons.play_arrow;
       case TaskStatus.completed:
         return Icons.check;
-      case TaskStatus.archived:
-        return Icons.archive;
+      case TaskStatus.overdue:
+        return Icons.lock_clock;
     }
   }
 

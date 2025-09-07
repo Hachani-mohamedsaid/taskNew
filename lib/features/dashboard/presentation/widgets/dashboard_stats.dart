@@ -23,11 +23,21 @@ class DashboardStats extends StatelessWidget {
 
     // Récupération dynamique des stats
     final int totalProjects = projectStats?['totalProjects'] ?? (isAdmin ? 5 : 2);
-    final int activeTasks = projectStats?['activeTasks'] ?? (isAdmin ? 20 : 7);
-    final int completedTasks = projectStats?['completedTasks'] ?? (isAdmin ? 8 : 2);
-    final int overdueTasks = projectStats?['overdueTasks'] ?? (isAdmin ? 3 : 1);
+final int activeTasks = taskStats?['inProgressTasks'] ??
+    projectStats?['activeTasks'] ??
+    (isAdmin ? 20 : 7);
 
-    final int totalTasks = activeTasks + completedTasks + overdueTasks;
+final int completedTasks = taskStats?['completedTasks'] ??
+    projectStats?['completedTasks'] ??
+    (isAdmin ? 8 : 2);
+
+final int overdueTasks = taskStats?['overdueTasks'] ??
+    projectStats?['overdueTasks'] ??
+    (isAdmin ? 3 : 1);
+
+// 🔹 Ici le total ne doit PAS inclure deux fois les tâches en retard
+final int totalTasks = activeTasks + completedTasks + overdueTasks;
+
     final double completionPercentage =
         totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 

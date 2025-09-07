@@ -81,137 +81,144 @@ class _ProjectCardState extends State<ProjectCard> {
   }
 
   void _openEditDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Modifier le projet'),
-        content: SizedBox(
-          width: 400,
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Nom'),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Champ requis' : null,
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(labelText: 'Description'),
-                    maxLines: 3,
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Champ requis' : null,
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<ProjectStatus>(
-                    value: _selectedStatus,
-                    decoration: const InputDecoration(labelText: 'Statut'),
-                    items: ProjectStatus.values
-                        .map((status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status.toString().split('.').last),
-                            ))
-                        .toList(),
-                    onChanged: (val) {
-                      if (!mounted) return;
-                      setState(() => _selectedStatus = val);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: _selectedPriority,
-                    decoration: const InputDecoration(labelText: 'Priorité'),
-                    items: _priorities
-                        .map((p) => DropdownMenuItem(
-                            value: p, child: Text(p.toUpperCase())))
-                        .toList(),
-                    onChanged: (val) {
-                      if (!mounted) return;
-                      setState(() => _selectedPriority = val);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Sélectionner les membres :",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+    
+  showDialog(
+    context: context,
+    builder: (_) => StatefulBuilder(
+      builder: (context, setStateDialog) {
+        return AlertDialog(
+          title: const Text('Modifier le projet'),
+          content: SizedBox(
+            width: 400,
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Nom
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(labelText: 'Nom'),
+                      validator: (value) => value == null || value.isEmpty ? 'Champ requis' : null,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 200,
-                    child: allUsers.isEmpty
-                        ? const Center(child: CircularProgressIndicator())
-                        : ListView.builder(
-                            itemCount: allUsers.length,
-                            itemBuilder: (context, index) {
-                              final user = allUsers[index];
-                              final userId =
-                                  membersAreEmails ? user.email : user.id;
-                              final isSelected =
-                                  selectedMemberIds.contains(userId);
-
-                              return CheckboxListTile(
-                                value: isSelected,
-                                title: Text(user.displayName),
-                                subtitle: Text(user.email),
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                contentPadding: EdgeInsets.zero,
-                                onChanged: (checked) {
-                                  setState(() {
-                                    if (checked == true) {
-                                      if (!selectedMemberIds
-                                          .contains(userId)) {
-                                        selectedMemberIds.add(userId);
-                                      }
-                                    } else {
-                                      selectedMemberIds.remove(userId);
-                                    }
-                                  });
-                                },
-                              );
-                            },
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (selectedMemberIds.isNotEmpty)
-                    Align(
+                    const SizedBox(height: 8),
+                    // Description
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(labelText: 'Description'),
+                      maxLines: 3,
+                      validator: (value) => value == null || value.isEmpty ? 'Champ requis' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    // Status
+                    DropdownButtonFormField<ProjectStatus>(
+                      value: _selectedStatus,
+                      decoration: const InputDecoration(labelText: 'Statut'),
+                      items: ProjectStatus.values
+                          .map((status) => DropdownMenuItem(
+                                value: status,
+                                child: Text(status.toString().split('.').last),
+                              ))
+                          .toList(),
+                      onChanged: (val) {
+                        setStateDialog(() => _selectedStatus = val);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    // Priorité
+                    DropdownButtonFormField<String>(
+                      value: _selectedPriority,
+                      decoration: const InputDecoration(labelText: 'Priorité'),
+                      items: _priorities
+                          .map((p) => DropdownMenuItem(
+                              value: p, child: Text(p.toUpperCase())))
+                          .toList(),
+                      onChanged: (val) {
+                        setStateDialog(() => _selectedPriority = val);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        "Membres choisis : " +
-                            allUsers
-                                .where((u) => selectedMemberIds.contains(
-                                    membersAreEmails ? u.email : u.id))
-                                .map((u) => u.displayName)
-                                .join(", "),
-                        style: const TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: Colors.blueGrey,
-                        ),
+                        "Sélectionner les membres :",
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
-                ],
+                    const SizedBox(height: 8),
+                  SizedBox(
+  height: 200,
+  child: allUsers.isEmpty
+      ? const Center(child: CircularProgressIndicator())
+      : Builder(
+          builder: (context) {
+            // Filtrer pour exclure l'utilisateur connecté
+            final filteredUsers =
+                allUsers.where((u) => u.id != widget.currentUser.id).toList();
+
+            return ListView.builder(
+              itemCount: filteredUsers.length,
+              itemBuilder: (context, index) {
+                final user = filteredUsers[index];
+                final userId = membersAreEmails ? user.email : user.id;
+                final isSelected = selectedMemberIds.contains(userId);
+
+                return CheckboxListTile(
+                  value: isSelected,
+                  title: Text(user.displayName),
+                  subtitle: Text(user.email),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (checked) {
+                    setStateDialog(() {
+                      if (checked == true) {
+                        if (!selectedMemberIds.contains(userId)) {
+                          selectedMemberIds.add(userId);
+                        }
+                      } else {
+                        selectedMemberIds.remove(userId);
+                      }
+                    });
+                  },
+                );
+              },
+            );
+          },
+        ),
+),
+
+                    const SizedBox(height: 12),
+                    if (selectedMemberIds.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "Membres choisis : " +
+                              allUsers
+                                  .where((u) => selectedMemberIds.contains(membersAreEmails ? u.email : u.id))
+                                  .map((u) => u.displayName)
+                                  .join(", "),
+                          style: const TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler')),
-          ElevatedButton(
-              onPressed: _saveProject, child: const Text('Enregistrer')),
-        ],
-      ),
-    );
-  }
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+            ElevatedButton(onPressed: _saveProject, child: const Text('Enregistrer')),
+          ],
+        );
+      },
+    ),
+  );
+}
+
 
   Future<void> _saveProject() async {
     if (!_formKey.currentState!.validate()) return;
